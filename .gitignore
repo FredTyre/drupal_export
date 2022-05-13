@@ -1,0 +1,7 @@
+*.bat
+
+drupal/6/output/*
+drupal/7/output/*
+
+!spec/drupal/6/example_run.bat
+!spec/drupal/7/example_run.bat
