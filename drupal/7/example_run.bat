@@ -8,4 +8,4 @@ set D7ET_CURR_DB_NAME=
 echo ON
 
 exporting website %D7ET_CURR_SITE_NAME% to output\%D7ET_CURR_SITE_NAME%
-python src\d7exportTaxonomy.py
+python src\d7_export_taxonomy.py
