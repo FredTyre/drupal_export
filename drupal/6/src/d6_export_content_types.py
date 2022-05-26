@@ -1,3 +1,4 @@
+from operator import truediv
 import os
 import MySQLdb
 import re
@@ -110,6 +111,24 @@ def prep_for_xml_out(string_to_prep):
 
     return return_string
 
+def check_if_table_exists(table_name):
+    conn = MySQLdb.connect(host=db_host, user=db_user, passwd=db_password, database=db_database, port=db_port)
+    cursor = conn.cursor()
+    
+    get_sql = "SHOW TABLES LIKE '" + table_name + "'"
+    
+    debug_output_file_handle.write("get_content_types sql statement: " + str(get_sql) + ENDL)
+    debug_output_file_handle.flush()
+    cursor.execute(get_sql)
+    tables = cursor.fetchall()
+    cursor.close()
+    conn.close()
+    
+    if len(tables) > 0 :
+        return True
+
+    return False
+
 def get_content_types():
     conn = MySQLdb.connect(host=db_host, user=db_user, passwd=db_password, database=db_database, port=db_port)
     cursor = conn.cursor()
@@ -125,6 +144,61 @@ def get_content_types():
     conn.close()
     
     return content_types
+
+def get_content_type_fields(content_type):
+    conn = MySQLdb.connect(host=db_host, user=db_user, passwd=db_password, database=db_database, port=db_port)
+    cursor = conn.cursor()
+
+    fields = []
+    table_name = "content_type_" + content_type
+    if check_if_table_exists(table_name):
+        get_sql = "DESCRIBE " + table_name
+        debug_output_file_handle.write("get_content_type_fields sql statement: " + str(get_sql) + ENDL)
+        debug_output_file_handle.flush()
+        cursor.execute(get_sql)
+        fieldrecords = cursor.fetchall()
+        cursor.close()
+        conn.close()
+
+        fields = []
+        for fieldrecord in fieldrecords:
+            if fieldrecord[0] != "vid" and fieldrecord[0] != "nid" and fieldrecord[0] != "delta" :
+                fields.append(fieldrecord)
+    
+    return fields
+
+def export_content_type_metadata(output_file_handle, content_type):
+    content_type_machine_name = content_type[0]
+    output_file_handle.write("      <ct_machine_name>" + str(content_type_machine_name) + "</ct_machine_name>" + ENDL)
+    output_file_handle.write("      <ct_human_name>" + str(content_type[1]) + "</ct_human_name>" + ENDL)
+    output_file_handle.write("      <ct_module>" + str(content_type[2]) + "</ct_module>" + ENDL)
+    output_file_handle.write("      <ct_description>" + str(content_type[3]) + "</ct_description>" + ENDL)
+    output_file_handle.write("      <ct_help>" + str(content_type[4]) + "</ct_help>" + ENDL)
+    output_file_handle.write("      <ct_has_title>" + str(content_type[5]) + "</ct_has_title>" + ENDL)
+    output_file_handle.write("      <ct_title_label>" + str(content_type[6]) + "</ct_title_label>" + ENDL)
+    output_file_handle.write("      <ct_has_body>" + str(content_type[7]) + "</ct_has_body>" + ENDL)
+    output_file_handle.write("      <ct_body_label>" + str(content_type[8]) + "</ct_body_label>" + ENDL)
+    output_file_handle.write("      <ct_min_word_count>" + str(content_type[9]) + "</ct_min_word_count>" + ENDL)
+    output_file_handle.write("      <ct_custom>" + str(content_type[10]) + "</ct_custom>" + ENDL)
+    output_file_handle.write("      <ct_modified>" + str(content_type[11]) + "</ct_modified>" + ENDL)
+    output_file_handle.write("      <ct_locked>" + str(content_type[12]) + "</ct_locked>" + ENDL)
+    output_file_handle.write("      <ct_orig_type>" + str(content_type[13]) + "</ct_orig_type>" + ENDL)
+    flush_print_files()
+
+def export_content_type_fields(output_file_handle, content_type):
+    content_type_machine_name = content_type[0]
+    fields = get_content_type_fields(content_type_machine_name)
+    for field in fields:
+        output_file_handle.write("      <content_type_field>" + ENDL)
+        output_file_handle.write("         <ct_field_name>" + str(field[0]) + "</ct_field_name>" + ENDL)
+        output_file_handle.write("         <ct_field_type>" + str(field[1]) + "</ct_field_type>" + ENDL)
+        output_file_handle.write("         <ct_field_can_be_null>" + str(field[2]) + "</ct_field_can_be_null>" + ENDL)
+        output_file_handle.write("         <ct_field_key>" + str(field[3]) + "</ct_field_key>" + ENDL)
+        output_file_handle.write("         <ct_field_default>" + str(field[4]) + "</ct_field_default>" + ENDL)
+        output_file_handle.write("         <ct_field_extra>" + str(field[5]) + "</ct_field_extra>" + ENDL)
+        output_file_handle.write("      </content_type_field>" + ENDL)
+    
+    output_file_handle.write("      </content_type_field>" + ENDL)
 
 if(not os.path.isdir(OUTPUT_DIRECTORY)):
     os.mkdir(OUTPUT_DIRECTORY)
@@ -142,13 +216,14 @@ debug_output_file_handle = open(debug_output_file, mode='w')
 
 content_types = get_content_types()
 for content_type in content_types:
-    curr_vocabulary_id = content_type[0]
-    curr_content_type = prep_for_xml_out(content_type[0])
-    output_file_handle = open(os.path.join(export_directory, curr_content_type + "_content_types.xml"), mode='w', encoding='utf-8')
+    curr_content_type = prep_for_xml_out(str(content_type[0]))
+    output_file_handle = open(os.path.join(export_directory, "content_type_" + curr_content_type + ".xml"), mode='w', encoding='utf-8')
     output_file_handle.write('<?xml version="1.0" ?>' + ENDL)
     output_file_handle.write("<content_types>" + ENDL)
-    flush_print_files()
-    
+    output_file_handle.write("   <content_type>" + ENDL)
+    export_content_type_metadata(output_file_handle, content_type)
+    export_content_type_fields(output_file_handle, content_type)
+    output_file_handle.write("   </content_type>" + ENDL)
     output_file_handle.write("</content_types>" + ENDL)
     output_file_handle.close()
 debug_output_file_handle.close()
