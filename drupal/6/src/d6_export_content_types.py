@@ -110,78 +110,21 @@ def prep_for_xml_out(string_to_prep):
 
     return return_string
 
-def get_vocabularies():
+def get_content_types():
     conn = MySQLdb.connect(host=db_host, user=db_user, passwd=db_password, database=db_database, port=db_port)
     cursor = conn.cursor()
     
-    get_sql = "SELECT vid, name FROM vocabulary ORDER BY vid"
+    get_sql = "SELECT type, name, module, description, help, has_title, title_label, has_body, "
+    get_sql += "body_label, min_word_count, custom, modified,locked, orig_type FROM node_type"
     
-    debug_output_file_handle.write("getVocabularies sql statement: " + str(get_sql) + ENDL)
+    debug_output_file_handle.write("get_content_types sql statement: " + str(get_sql) + ENDL)
     debug_output_file_handle.flush()
     cursor.execute(get_sql)
-    vocabularies = cursor.fetchall()
+    content_types = cursor.fetchall()
     cursor.close()
     conn.close()
     
-    return vocabularies
-
-def get_taxonomy_top_level(vocabulary_id):
-    conn = MySQLdb.connect(host=db_host, user=db_user, passwd=db_password, database=db_database, port=db_port)
-    cursor = conn.cursor()
-    
-    get_sql = "SELECT term_data.tid, name "
-    get_sql = get_sql + "FROM term_data "
-    get_sql = get_sql + "LEFT JOIN term_hierarchy "
-    get_sql = get_sql + "ON (term_data.tid = term_hierarchy.tid) "
-    get_sql = get_sql + "WHERE vid = " + str(vocabulary_id) + " "
-    get_sql = get_sql + "AND term_hierarchy.parent = 0 "
-    get_sql = get_sql + "ORDER BY name, weight, term_data.tid"
-    
-    debug_output_file_handle.write("getTaxonomy sql statement: " + str(get_sql) + ENDL)
-    debug_output_file_handle.flush()
-    cursor.execute(get_sql)
-    taxonomy_top_levels = cursor.fetchall()
-    cursor.close()
-    conn.close()
-    
-    return taxonomy_top_levels
-
-def printChildren(vocabulary_id, vocabulary_name, depth, parent_id, parent_name):
-    conn = MySQLdb.connect(host=db_host, user=db_user, passwd=db_password, database=db_database, port=db_port)
-    cursor = conn.cursor()
-    
-    get_sql = "SELECT term_data.tid, name "
-    get_sql = get_sql + "FROM term_data "
-    get_sql = get_sql + "LEFT JOIN term_hierarchy "
-    get_sql = get_sql + "ON (term_data.tid = term_hierarchy.tid) "
-    get_sql = get_sql + "WHERE vid = " + str(vocabulary_id) + " "
-    get_sql = get_sql + "AND term_hierarchy.parent = " + str(parent_id) + " "
-    get_sql = get_sql + "ORDER BY name, weight, term_data.tid"
-    
-    debug_output_file_handle.write("getTaxonomy sql statement: " + str(get_sql) + ENDL)
-    debug_output_file_handle.flush()
-    cursor.execute(get_sql)
-    children = cursor.fetchall()
-    cursor.close()
-    conn.close()
-
-    for child in children:
-        child_tid = child[0]
-        child_term_name = prep_for_xml_out(child[1])
-        depth_spacing = ' ' * depth
-
-        output_file_handle.write(depth_spacing + "<taxonomy_term>" + ENDL)
-        output_file_handle.write(depth_spacing + "<vocabulary_id>" + str(vocabulary_id) + "</vocabulary_id>" + ENDL)
-        output_file_handle.write(depth_spacing + "<vocabulary_name>" + str(vocabulary_name) + "</vocabulary_name>" + ENDL)
-        output_file_handle.write(depth_spacing + "<term_depth>" + str(depth) + "</term_depth>" + ENDL)
-        output_file_handle.write(depth_spacing + "<term_id>" + str(child_tid) + "</term_id>" + ENDL)
-        output_file_handle.write(depth_spacing + "<term_name>" + str(child_term_name) + "</term_name>" + ENDL)
-        output_file_handle.write(depth_spacing + "<term_parent_id>" + str(parent_id) + "</term_parent_id>" + ENDL)
-        output_file_handle.write(depth_spacing + "<term_parent_name>" + str(parent_name) + "</term_parent_name>" + ENDL)
-        output_file_handle.write(depth_spacing + "</taxonomy_term>" + ENDL)
-        output_file_handle.flush()
-
-        printChildren(vocabulary_id, curr_vocabulary_name, depth+1, child_tid, child_term_name)
+    return content_types
 
 if(not os.path.isdir(OUTPUT_DIRECTORY)):
     os.mkdir(OUTPUT_DIRECTORY)
@@ -197,31 +140,16 @@ debug_output_file = os.path.join(logs_directory, 'debug.log')
 
 debug_output_file_handle = open(debug_output_file, mode='w')
 
-vocabularies = get_vocabularies()
-for vocabulary in vocabularies:
-    curr_vocabulary_id = vocabulary[0]
-    curr_vocabulary_name = prep_for_xml_out(vocabulary[1])
-    output_file_handle = open(os.path.join(export_directory, curr_vocabulary_name + "_taxonomy.xml"), mode='w', encoding='utf-8')
+content_types = get_content_types()
+for content_type in content_types:
+    curr_vocabulary_id = content_type[0]
+    curr_content_type = prep_for_xml_out(content_type[0])
+    output_file_handle = open(os.path.join(export_directory, curr_content_type + "_content_types.xml"), mode='w', encoding='utf-8')
     output_file_handle.write('<?xml version="1.0" ?>' + ENDL)
-    output_file_handle.write("<taxonomy_terms>" + ENDL)
-    taxonomy_top_levels = get_taxonomy_top_level(curr_vocabulary_id)
+    output_file_handle.write("<content_types>" + ENDL)
     flush_print_files()
-    for taxonomy_top_level in taxonomy_top_levels:
-        curr_term_tid = taxonomy_top_level[0]
-        output_file_handle.write(' ' + "<taxonomy_term>" + ENDL)
-        output_file_handle.write(' ' + "<vocabulary_id>" + str(curr_vocabulary_id) + "</vocabulary_id>" + ENDL)
-        output_file_handle.write(' ' + "<vocabulary_name>" + str(curr_vocabulary_name) + "</vocabulary_name>" + ENDL)
-        output_file_handle.write(' ' + "<term_id>" + str(curr_term_tid) + "</term_id>" + ENDL)
-
-        curr_term_name = prep_for_xml_out(taxonomy_top_level[1])
-        output_file_handle.write(' ' + "<term_name>" + str(curr_term_name) + "</term_name>" + ENDL)
-        output_file_handle.write(' ' + "</taxonomy_term>" + ENDL)
-
-        printChildren(curr_vocabulary_id, curr_vocabulary_name, 1, curr_term_tid, curr_term_name)
-
-        flush_print_files()
     
-    output_file_handle.write("</taxonomy_terms>" + ENDL)
+    output_file_handle.write("</content_types>" + ENDL)
     output_file_handle.close()
 debug_output_file_handle.close()
 
