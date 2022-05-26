@@ -48,10 +48,10 @@ def remove_empty_lines(string_to_fix, end_line):
 
     lines = string_to_fix.split(end_line)
     for line in lines:
-        if(line is None):
+        if line is None :
             continue
         
-        if(len(line.strip()) > 0):
+        if len(line.strip()) > 0 :
             return_string += line + end_line
 
     return return_string
@@ -62,7 +62,7 @@ def shrink_width(string_to_shrink, new_width):
     current_line_length = 0
     first_word = True
     for current_word in string_to_shrink.split(" "):
-        if(not first_word and current_line_length > new_width):
+        if not first_word and current_line_length > new_width :
             return_string += ENDL
             current_line_length = 0
             first_word = True
@@ -76,7 +76,7 @@ def shrink_width(string_to_shrink, new_width):
     return return_string.strip()
 
 def convert_html(string_to_convert, end_line):
-    if(string_to_convert is None):
+    if string_to_convert is None :
         return ""
     
     return_string = string_to_convert
@@ -88,7 +88,10 @@ def convert_html(string_to_convert, end_line):
     return_string = ignore_case_replace_space.sub(" ", return_string)
 
     return_string = remove_empty_lines(return_string, end_line)
-    # print('================================================\n' + string2Convert + '--------------------------------------\n' + returnString + '================================================\n')
+    # print('================================================\n')
+    # print(string2Convert)
+    # print('--------------------------------------\n')
+    # print(returnString + '================================================\n')
     
     return return_string.strip()
 
