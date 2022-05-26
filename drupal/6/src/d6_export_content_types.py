@@ -197,8 +197,6 @@ def export_content_type_fields(output_file_handle, content_type):
         output_file_handle.write("         <ct_field_default>" + str(field[4]) + "</ct_field_default>" + ENDL)
         output_file_handle.write("         <ct_field_extra>" + str(field[5]) + "</ct_field_extra>" + ENDL)
         output_file_handle.write("      </content_type_field>" + ENDL)
-    
-    output_file_handle.write("      </content_type_field>" + ENDL)
 
 if(not os.path.isdir(OUTPUT_DIRECTORY)):
     os.mkdir(OUTPUT_DIRECTORY)
