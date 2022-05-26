@@ -92,10 +92,10 @@ def convert_html(string_to_convert, end_line):
     
     return return_string.strip()
 
-def print_empty_line(output_file_handle):
+def print_empty_line():
     output_file_handle.write(ENDL)
     
-def flush_print_files(debug_output_file_handle, output_file_handle):
+def flush_print_files():
     debug_output_file_handle.flush()
     output_file_handle.flush()
 
@@ -106,7 +106,7 @@ def prep_for_xml_out(string_to_prep):
 
     return return_string
 
-def get_vocabularies(debug_output_file_handle):
+def get_vocabularies():
     conn = MySQLdb.connect(host=db_host, user=db_user, passwd=db_password, database=db_database, port=db_port)
     cursor = conn.cursor()
     
@@ -121,7 +121,7 @@ def get_vocabularies(debug_output_file_handle):
     
     return vocabularies
 
-def get_taxonomy_top_level(debug_output_file_handle, vocabulary_id):
+def get_taxonomy_top_level(vocabulary_id):
     conn = MySQLdb.connect(host=db_host, user=db_user, passwd=db_password, database=db_database, port=db_port)
     cursor = conn.cursor()
     
@@ -142,7 +142,7 @@ def get_taxonomy_top_level(debug_output_file_handle, vocabulary_id):
     
     return taxonomy_top_levels
 
-def printChildren(debug_output_file_handle, output_file_handle, vocabulary_id, vocabulary_name, depth, parent_id, parent_name):
+def printChildren(vocabulary_id, vocabulary_name, depth, parent_id, parent_name):
     conn = MySQLdb.connect(host=db_host, user=db_user, passwd=db_password, database=db_database, port=db_port)
     cursor = conn.cursor()
     
@@ -177,7 +177,7 @@ def printChildren(debug_output_file_handle, output_file_handle, vocabulary_id, v
         output_file_handle.write(depth_spacing + "</taxonomy_term>" + ENDL)
         output_file_handle.flush()
 
-        printChildren(debug_output_file_handle, output_file_handle, vocabulary_id, curr_vocabulary_name, depth+1, child_tid, child_term_name)
+        printChildren(vocabulary_id, curr_vocabulary_name, depth+1, child_tid, child_term_name)
 
 if(not os.path.isdir(OUTPUT_DIRECTORY)):
     os.mkdir(OUTPUT_DIRECTORY)
@@ -193,15 +193,15 @@ debug_output_file = os.path.join(logs_directory, 'debug.log')
 
 debug_output_file_handle = open(debug_output_file, mode='w')
 
-vocabularies = get_vocabularies(debug_output_file_handle)
+vocabularies = get_vocabularies()
 for vocabulary in vocabularies:
     curr_vocabulary_id = vocabulary[0]
     curr_vocabulary_name = prep_for_xml_out(vocabulary[1])
     output_file_handle = open(os.path.join(export_directory, curr_vocabulary_name + "_taxonomy.xml"), mode='w', encoding='utf-8')
     output_file_handle.write('<?xml version="1.0" ?>' + ENDL)
     output_file_handle.write("<taxonomy_terms>" + ENDL)
-    taxonomy_top_levels = get_taxonomy_top_level(debug_output_file_handle, curr_vocabulary_id)
-    flush_print_files(debug_output_file_handle, output_file_handle)
+    taxonomy_top_levels = get_taxonomy_top_level(curr_vocabulary_id)
+    flush_print_files()
     for taxonomy_top_level in taxonomy_top_levels:
         curr_term_tid = taxonomy_top_level[0]
         output_file_handle.write(' ' + "<taxonomy_term>" + ENDL)
@@ -213,9 +213,9 @@ for vocabulary in vocabularies:
         output_file_handle.write(' ' + "<term_name>" + str(curr_term_name) + "</term_name>" + ENDL)
         output_file_handle.write(' ' + "</taxonomy_term>" + ENDL)
 
-        printChildren(debug_output_file_handle, output_file_handle, curr_vocabulary_id, curr_vocabulary_name, 1, curr_term_tid, curr_term_name)
+        printChildren(curr_vocabulary_id, curr_vocabulary_name, 1, curr_term_tid, curr_term_name)
 
-        flush_print_files(debug_output_file_handle, output_file_handle)
+        flush_print_files()
     
     output_file_handle.write("</taxonomy_terms>" + ENDL)
     output_file_handle.close()
