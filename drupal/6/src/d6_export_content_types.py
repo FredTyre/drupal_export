@@ -111,6 +111,9 @@ def prep_for_xml_out(string_to_prep):
 
     return return_string
 
+def wrap_xml_field(num_spaces, xml_tag_name, xml_field):
+    return (' ' * num_spaces) + "<" + xml_tag_name + ">" + prep_for_xml_out(str(xml_field)) + "</" + xml_tag_name + ">" + ENDL
+
 def check_if_table_exists(table_name):
     conn = MySQLdb.connect(host=db_host, user=db_user, passwd=db_password, database=db_database, port=db_port)
     cursor = conn.cursor()
@@ -168,35 +171,42 @@ def get_content_type_fields(content_type):
     return fields
 
 def export_content_type_metadata(output_file_handle, content_type):
-    content_type_machine_name = content_type[0]
-    output_file_handle.write("      <ct_machine_name>" + str(content_type_machine_name) + "</ct_machine_name>" + ENDL)
-    output_file_handle.write("      <ct_human_name>" + str(content_type[1]) + "</ct_human_name>" + ENDL)
-    output_file_handle.write("      <ct_module>" + str(content_type[2]) + "</ct_module>" + ENDL)
-    output_file_handle.write("      <ct_description>" + str(content_type[3]) + "</ct_description>" + ENDL)
-    output_file_handle.write("      <ct_help>" + str(content_type[4]) + "</ct_help>" + ENDL)
-    output_file_handle.write("      <ct_has_title>" + str(content_type[5]) + "</ct_has_title>" + ENDL)
-    output_file_handle.write("      <ct_title_label>" + str(content_type[6]) + "</ct_title_label>" + ENDL)
-    output_file_handle.write("      <ct_has_body>" + str(content_type[7]) + "</ct_has_body>" + ENDL)
-    output_file_handle.write("      <ct_body_label>" + str(content_type[8]) + "</ct_body_label>" + ENDL)
-    output_file_handle.write("      <ct_min_word_count>" + str(content_type[9]) + "</ct_min_word_count>" + ENDL)
-    output_file_handle.write("      <ct_custom>" + str(content_type[10]) + "</ct_custom>" + ENDL)
-    output_file_handle.write("      <ct_modified>" + str(content_type[11]) + "</ct_modified>" + ENDL)
-    output_file_handle.write("      <ct_locked>" + str(content_type[12]) + "</ct_locked>" + ENDL)
-    output_file_handle.write("      <ct_orig_type>" + str(content_type[13]) + "</ct_orig_type>" + ENDL)
+    export_string = ""
+    
+    export_string += wrap_xml_field(6, "ct_machine_name", content_type[0])
+    export_string += wrap_xml_field(6, "ct_human_name", content_type[1])
+    export_string += wrap_xml_field(6, "ct_description", content_type[3])
+    export_string += wrap_xml_field(6, "ct_module", content_type[2])
+    export_string += wrap_xml_field(6, "ct_help", content_type[4])
+    export_string += wrap_xml_field(6, "ct_has_title", content_type[5])
+    export_string += wrap_xml_field(6, "ct_title_label", content_type[6])
+    export_string += wrap_xml_field(6, "ct_has_body", content_type[7])
+    export_string += wrap_xml_field(6, "ct_body_label", content_type[8])
+    export_string += wrap_xml_field(6, "ct_min_word_count", content_type[9])
+    export_string += wrap_xml_field(6, "ct_custom", content_type[10])
+    export_string += wrap_xml_field(6, "ct_modified", content_type[11])
+    export_string += wrap_xml_field(6, "ct_locked", content_type[12])
+    export_string += wrap_xml_field(6, "ct_orig_type", content_type[13])
+    output_file_handle.write(export_string)
     flush_print_files()
 
 def export_content_type_fields(output_file_handle, content_type):
     content_type_machine_name = content_type[0]
     fields = get_content_type_fields(content_type_machine_name)
     for field in fields:
+        export_string = ""
+        
         output_file_handle.write("      <content_type_field>" + ENDL)
-        output_file_handle.write("         <ct_field_name>" + str(field[0]) + "</ct_field_name>" + ENDL)
-        output_file_handle.write("         <ct_field_type>" + str(field[1]) + "</ct_field_type>" + ENDL)
-        output_file_handle.write("         <ct_field_can_be_null>" + str(field[2]) + "</ct_field_can_be_null>" + ENDL)
-        output_file_handle.write("         <ct_field_key>" + str(field[3]) + "</ct_field_key>" + ENDL)
-        output_file_handle.write("         <ct_field_default>" + str(field[4]) + "</ct_field_default>" + ENDL)
-        output_file_handle.write("         <ct_field_extra>" + str(field[5]) + "</ct_field_extra>" + ENDL)
+        export_string += wrap_xml_field(9, "ct_field_name", field[0])
+        export_string += wrap_xml_field(9, "ct_field_type", field[1])
+        export_string += wrap_xml_field(9, "ct_field_can_be_null", field[2])
+        export_string += wrap_xml_field(9, "ct_field_key", field[3])
+        export_string += wrap_xml_field(9, "ct_field_default", field[4])
+        export_string += wrap_xml_field(9, "ct_field_extra", field[5])
         output_file_handle.write("      </content_type_field>" + ENDL)
+
+        output_file_handle.write(export_string)
+        flush_print_files()
 
 if(not os.path.isdir(OUTPUT_DIRECTORY)):
     os.mkdir(OUTPUT_DIRECTORY)
