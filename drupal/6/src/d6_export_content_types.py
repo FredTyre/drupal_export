@@ -203,9 +203,8 @@ def export_content_type_fields(output_file_handle, content_type):
         export_string += wrap_xml_field(9, "ct_field_key", field[3])
         export_string += wrap_xml_field(9, "ct_field_default", field[4])
         export_string += wrap_xml_field(9, "ct_field_extra", field[5])
-        output_file_handle.write("      </content_type_field>" + ENDL)
-
         output_file_handle.write(export_string)
+        output_file_handle.write("      </content_type_field>" + ENDL)
         flush_print_files()
 
 if(not os.path.isdir(OUTPUT_DIRECTORY)):
