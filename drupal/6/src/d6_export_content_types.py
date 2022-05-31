@@ -153,20 +153,24 @@ def get_content_type_fields(content_type):
     cursor = conn.cursor()
 
     fields = []
-    table_name = "content_type_" + content_type
-    if check_if_table_exists(table_name):
-        get_sql = "DESCRIBE " + table_name
-        debug_output_file_handle.write("get_content_type_fields sql statement: " + str(get_sql) + ENDL)
-        debug_output_file_handle.flush()
-        cursor.execute(get_sql)
-        fieldrecords = cursor.fetchall()
-        cursor.close()
-        conn.close()
+    get_sql = "SELECT content_node_field_instance.field_name, type, global_settings, required, "
+    get_sql += "multiple, db_storage, module, db_columns, active, weight, label, widget_type, "
+    get_sql += "widget_settings, display_settings, description, "
+    get_sql += "widget_module, widget_active "
+    get_sql += "FROM content_node_field_instance, content_node_field "
+    get_sql += "WHERE content_node_field_instance.field_name = content_node_field.field_name "
+    get_sql += "AND type_name = '" + content_type + "'"
+    debug_output_file_handle.write("get_content_type_fields sql statement: " + str(get_sql) + ENDL)
+    debug_output_file_handle.flush()
+    cursor.execute(get_sql)
+    fieldrecords = cursor.fetchall()
+    cursor.close()
+    conn.close()
 
-        fields = []
-        for fieldrecord in fieldrecords:
-            if fieldrecord[0] != "vid" and fieldrecord[0] != "nid" and fieldrecord[0] != "delta" :
-                fields.append(fieldrecord)
+    fields = []
+    for fieldrecord in fieldrecords:
+        if fieldrecord[0] != "vid" and fieldrecord[0] != "nid" and fieldrecord[0] != "delta" :
+            fields.append(fieldrecord)
     
     return fields
 
@@ -199,10 +203,22 @@ def export_content_type_fields(output_file_handle, content_type):
         output_file_handle.write("      <content_type_field>" + ENDL)
         export_string += wrap_xml_field(9, "ct_field_name", field[0])
         export_string += wrap_xml_field(9, "ct_field_type", field[1])
-        export_string += wrap_xml_field(9, "ct_field_can_be_null", field[2])
-        export_string += wrap_xml_field(9, "ct_field_key", field[3])
-        export_string += wrap_xml_field(9, "ct_field_default", field[4])
-        export_string += wrap_xml_field(9, "ct_field_extra", field[5])
+        export_string += wrap_xml_field(9, "ct_field_global_settings", field[2])
+        export_string += wrap_xml_field(9, "ct_field_required", field[3])
+        export_string += wrap_xml_field(9, "ct_field_multiple", field[3])
+        export_string += wrap_xml_field(9, "ct_field_db_storage", field[4])
+        export_string += wrap_xml_field(9, "ct_field_module", field[5])
+        export_string += wrap_xml_field(9, "ct_field_db_columns", field[6])
+        export_string += wrap_xml_field(9, "ct_field_active", field[7])
+        export_string += wrap_xml_field(9, "ct_field_weight", field[8])
+        export_string += wrap_xml_field(9, "ct_field_label", field[9])
+        export_string += wrap_xml_field(9, "ct_field_widget_type", field[10])
+        export_string += wrap_xml_field(9, "ct_field_widget_settings", field[11])
+        export_string += wrap_xml_field(9, "ct_field_display_settings", field[12])
+        export_string += wrap_xml_field(9, "ct_field_description", field[13])
+        export_string += wrap_xml_field(9, "ct_field_widget_module", field[14])
+        export_string += wrap_xml_field(9, "ct_field_widget_active", field[15])
+        
         output_file_handle.write(export_string)
         output_file_handle.write("      </content_type_field>" + ENDL)
         flush_print_files()
