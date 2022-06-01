@@ -55,8 +55,10 @@ def csvStringToList(csvString, separator):
     csvArray = csvString.split(separator)
 
     returnList = []
-    for record in csvArray:
-        returnList.append(record)
+    for currField in csvArray:
+        returnList.append(currField)
+
+    return returnList
 
 def remove_empty_lines(string_to_fix, end_line):
     return_string = ""
@@ -110,10 +112,10 @@ def convert_html(string_to_convert, end_line):
     
     return return_string.strip()
 
-def print_empty_line():
+def print_empty_line(output_file_handle):
     output_file_handle.write(ENDL)
     
-def flush_print_files():
+def flush_print_files(debug_output_file_handle, output_file_handle):
     debug_output_file_handle.flush()
     output_file_handle.flush()
 
@@ -127,7 +129,6 @@ def prep_for_xml_out(string_to_prep):
 def wrap_xml_field(num_spaces, xml_tag_name, xml_field):
     return (' ' * num_spaces) + "<" + xml_tag_name + ">" + prep_for_xml_out(str(xml_field)) + "</" + xml_tag_name + ">" + ENDL
 
-
 def drupal_9_json_get_key(json_string, json_key):
     """drupal 9 does JSON differently than python does, apparently. 
        Find the json_key in json_string and return it's value."""
@@ -136,11 +137,20 @@ def drupal_9_json_get_key(json_string, json_key):
     return_string = str_json_string[str_json_string.find(json_key):]
     return_string = return_string.replace(';', ':')
     return_string_array = return_string.split(':')
+    
+    if len(return_string_array) < 4 :
+        print("Could not find json_key " + json_key)
+        print()
+        print(json_string)
+        print()
+
+        return ""
+
     return_string = return_string_array[3]
     
     return return_string.strip('"')
 
-def check_if_table_exists(table_name):
+def check_if_table_exists(debug_output_file_handle, table_name):
     conn = MySQLdb.connect(host=db_host, user=db_user, passwd=db_password, database=db_database, port=db_port)
     cursor = conn.cursor()
     
@@ -158,7 +168,7 @@ def check_if_table_exists(table_name):
 
     return False
 
-def if_content_type_has_body(content_type):
+def if_content_type_has_body(debug_output_file_handle, content_type):
     conn = MySQLdb.connect(host=db_host, user=db_user, passwd=db_password, database=db_database, port=db_port)
     cursor = conn.cursor()
     
@@ -176,7 +186,7 @@ def if_content_type_has_body(content_type):
 
     return False
 
-def get_content_type_body_label(content_type):
+def get_content_type_body_label(debug_output_file_handle, content_type):
     conn = MySQLdb.connect(host=db_host, user=db_user, passwd=db_password, database=db_database, port=db_port)
     cursor = conn.cursor()
     
@@ -194,7 +204,7 @@ def get_content_type_body_label(content_type):
 
     return None
 
-def get_content_types(content_types_to_exclude):
+def get_content_types(debug_output_file_handle, content_types_to_exclude):
     conn = MySQLdb.connect(host=db_host, user=db_user, passwd=db_password, database=db_database, port=db_port)
     cursor = conn.cursor()
     
@@ -212,10 +222,14 @@ def get_content_types(content_types_to_exclude):
         curr_d9_json_string = curr_ct_data[0]
 
         content_type = drupal_9_json_get_key(curr_d9_json_string, "type")
-        name = drupal_9_json_get_key(curr_d9_json_string, "name")
-        if name in content_types_to_exclude:
+
+        if content_type is None :
             continue
-        
+
+        if content_types_to_exclude is not None and content_type in content_types_to_exclude:
+            continue
+
+        name = drupal_9_json_get_key(curr_d9_json_string, "name")
         #module = drupal_9_json_get_key(curr_d9_json_string, "module")
         module = ""
         description = drupal_9_json_get_key(curr_d9_json_string, "description")
@@ -224,9 +238,9 @@ def get_content_types(content_types_to_exclude):
         has_title = ""
         #title_label = drupal_9_json_get_key(curr_d9_json_string, "")
         title_label = ""
-        has_body = if_content_type_has_body(content_type)
+        has_body = if_content_type_has_body(debug_output_file_handle, content_type)
         if has_body :
-            body_label = get_content_type_body_label(content_type)
+            body_label = get_content_type_body_label(debug_output_file_handle, content_type)
         else:
             body_label = ""
         #min_word_count = drupal_9_json_get_key(curr_d9_json_string, "")
@@ -244,7 +258,7 @@ def get_content_types(content_types_to_exclude):
 
     return content_types
 
-def get_content_type_fields(content_type):
+def get_content_type_fields(debug_output_file_handle, content_type):
     conn = MySQLdb.connect(host=db_host, user=db_user, passwd=db_password, database=db_database, port=db_port)
     cursor = conn.cursor()
 
@@ -284,7 +298,7 @@ def get_content_type_fields(content_type):
     
     return fields
 
-def export_content_type_metadata(output_file_handle, content_type):
+def export_content_type_metadata(debug_output_file_handle, output_file_handle, content_type):
     export_string = ""
     
     export_string += wrap_xml_field(6, "ct_machine_name", content_type[0])
@@ -302,11 +316,11 @@ def export_content_type_metadata(output_file_handle, content_type):
     export_string += wrap_xml_field(6, "ct_locked", content_type[12])
     export_string += wrap_xml_field(6, "ct_orig_type", content_type[13])
     output_file_handle.write(export_string)
-    flush_print_files()
+    flush_print_files(debug_output_file_handle, output_file_handle)
 
-def export_content_type_fields(output_file_handle, content_type):
+def export_content_type_fields(debug_output_file_handle, output_file_handle, content_type):
     content_type_machine_name = content_type[0]
-    fields = get_content_type_fields(content_type_machine_name)
+    fields = get_content_type_fields(debug_output_file_handle, content_type_machine_name)
     for field in fields:
         export_string = ""
         
@@ -331,9 +345,18 @@ def export_content_type_fields(output_file_handle, content_type):
         
         output_file_handle.write(export_string)
         output_file_handle.write("      </content_type_field>" + ENDL)
-        flush_print_files()
+        flush_print_files(debug_output_file_handle, output_file_handle)
 
 def main():
+
+    parser = argparse.ArgumentParser(description='Export drupal content types from a drupal 9 website.')
+    parser.add_argument('--exclude', type=str, required=False,
+                        help='comma separated list of content types to exclude from export')
+
+    parameters = parser.parse_args()
+
+    content_types_to_exclude = csvStringToList(parameters.exclude, ",")
+    print(content_types_to_exclude)
 
     if(not os.path.isdir(OUTPUT_DIRECTORY)):
         os.mkdir(OUTPUT_DIRECTORY)
@@ -350,23 +373,15 @@ def main():
 
     debug_output_file_handle = open(debug_output_file, mode='w')
 
-    parser = argparse.ArgumentParser(description='Export drupal content types from a drupal 9 website.')
-    parser.add_argument('--exclude', type=string, const=sum, default=max,
-                        help='sum the integers (default: find the max)')
-
-    parameters = parser.parse_args()
-
-    content_types_to_exclude = csvStringToList(parameters.exclude, ",")
-
-    content_types = get_content_types(content_types_to_exclude)
+    content_types = get_content_types(debug_output_file_handle, content_types_to_exclude)
     for content_type in content_types:
         curr_content_type = prep_for_xml_out(str(content_type[0]))
         output_file_handle = open(os.path.join(export_directory, "content_type_" + curr_content_type + ".xml"), mode='w', encoding='utf-8')
         output_file_handle.write('<?xml version="1.0" ?>' + ENDL)
         output_file_handle.write("<content_types>" + ENDL)
         output_file_handle.write("   <content_type>" + ENDL)
-        export_content_type_metadata(output_file_handle, content_type)
-        export_content_type_fields(output_file_handle, content_type)
+        export_content_type_metadata(debug_output_file_handle, output_file_handle, content_type)
+        export_content_type_fields(debug_output_file_handle, output_file_handle, content_type)
         output_file_handle.write("   </content_type>" + ENDL)
         output_file_handle.write("</content_types>" + ENDL)
         output_file_handle.close()
@@ -374,5 +389,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
