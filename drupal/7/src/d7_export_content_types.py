@@ -1,4 +1,6 @@
 from operator import truediv
+from xml.sax.saxutils import escape
+
 import string
 import sys
 import argparse
@@ -6,7 +8,6 @@ import os
 import MySQLdb
 import re
 import sshtunnel
-from xml.sax.saxutils import escape
 
 OUTPUT_DIRECTORY = 'output'
 LOGS_DIRECTORY = 'logs'
@@ -16,12 +17,12 @@ ENDL = '\n'
 SINGLE_QUOTE = "'"
 DOUBLE_QUOTE = '"'
 
-current_website = os.environ.get("D6ET_CURR_SITE_NAME")
-db_host = os.environ.get("D6ET_CURR_DB_HOST")
-db_port = int(os.environ.get("D6ET_CURR_DB_PORT"))
-db_user = os.environ.get("D6ET_CURR_DB_USER")
-db_password =  os.environ.get("D6ET_CURR_DB_PASS")
-db_database =  os.environ.get("D6ET_CURR_DB_NAME")
+current_website = os.environ.get("D7ET_CURR_SITE_NAME")
+db_host = os.environ.get("D7ET_CURR_DB_HOST")
+db_port = int(os.environ.get("D7ET_CURR_DB_PORT"))
+db_user = os.environ.get("D7ET_CURR_DB_USER")
+db_password =  os.environ.get("D7ET_CURR_DB_PASS")
+db_database =  os.environ.get("D7ET_CURR_DB_NAME")
 
 ignore_case_replace_end_lines_1 = re.compile("<br/>", re.IGNORECASE)
 ignore_case_replace_end_lines_2 = re.compile("<br />", re.IGNORECASE)
@@ -151,8 +152,8 @@ def get_content_types(debug_output_file_handle, content_type):
     conn = MySQLdb.connect(host=db_host, user=db_user, passwd=db_password, database=db_database, port=db_port)
     cursor = conn.cursor()
     
-    get_sql = "SELECT type, name, module, description, help, has_title, title_label, has_body, "
-    get_sql += "body_label, min_word_count, custom, modified, locked, orig_type FROM node_type"
+    get_sql = "SELECT type, name, module, description, help, has_title, title_label, NULL has_body, "
+    get_sql += "NULL body_label, NULL min_word_count, custom, modified, locked, orig_type FROM node_type"
     
     debug_output_file_handle.write("get_content_types sql statement: " + str(get_sql) + ENDL)
     debug_output_file_handle.flush()
@@ -168,13 +169,13 @@ def get_content_type_fields(debug_output_file_handle, content_type):
     cursor = conn.cursor()
 
     fields = []
-    get_sql = "SELECT content_node_field_instance.field_name, type, global_settings, required, "
-    get_sql += "multiple, db_storage, module, db_columns, active, weight, label, widget_type, "
-    get_sql += "widget_settings, display_settings, description, "
-    get_sql += "widget_module, widget_active "
-    get_sql += "FROM content_node_field_instance, content_node_field "
-    get_sql += "WHERE content_node_field_instance.field_name = content_node_field.field_name "
-    get_sql += "AND type_name = '" + content_type + "'"
+    get_sql = "SELECT field_config_instance.field_name, type, field_config_instance.data, NULL required, "
+    get_sql += "cardinality, storage_type, module, NULL db_columns, active, NULL weight, NULL label, NULL widget_type, "
+    get_sql += "NULL widget_settings, NULL display_settings, NULL description, "
+    get_sql += "NULL widget_module, NULL widget_active "
+    get_sql += "FROM field_config_instance, field_config "
+    get_sql += "WHERE field_config_instance.field_id = field_config.id "
+    get_sql += "AND bundle = '" + content_type + "'"
     debug_output_file_handle.write("get_content_type_fields sql statement: " + str(get_sql) + ENDL)
     debug_output_file_handle.flush()
     cursor.execute(get_sql)
@@ -259,7 +260,7 @@ def main():
     if(not os.path.isdir(logs_directory)):
         os.mkdir(logs_directory)
 
-    debug_output_file = os.path.join(logs_directory, 'debug.log')
+    debug_output_file = os.path.join(logs_directory, 'ct_debug.log')
 
     debug_output_file_handle = open(debug_output_file, mode='w')
 

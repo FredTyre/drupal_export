@@ -193,7 +193,7 @@ if(not os.path.isdir(export_directory)):
 logs_directory = os.path.join(export_directory, LOGS_DIRECTORY)
 if(not os.path.isdir(logs_directory)):
     os.mkdir(logs_directory)
-debug_output_file = os.path.join(logs_directory, 'debug.log')
+debug_output_file = os.path.join(logs_directory, 'taxonomy_debug.log')
 
 debug_output_file_handle = open(debug_output_file, mode='w')
 

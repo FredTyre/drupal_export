@@ -348,7 +348,6 @@ def export_content_type_fields(debug_output_file_handle, output_file_handle, con
         flush_print_files(debug_output_file_handle, output_file_handle)
 
 def main():
-
     parser = argparse.ArgumentParser(description='Export drupal content types from a drupal 9 website.')
     parser.add_argument('--exclude', type=str, required=False,
                         help='comma separated list of content types to exclude from export')
@@ -369,7 +368,7 @@ def main():
     if(not os.path.isdir(logs_directory)):
         os.mkdir(logs_directory)
 
-    debug_output_file = os.path.join(logs_directory, 'debug.log')
+    debug_output_file = os.path.join(logs_directory, 'ct_debug.log')
 
     debug_output_file_handle = open(debug_output_file, mode='w')
 

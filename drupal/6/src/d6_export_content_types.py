@@ -1,4 +1,7 @@
 from operator import truediv
+import string
+import sys
+import argparse
 import os
 import MySQLdb
 import re
@@ -44,6 +47,18 @@ html_escape_table = {
 '': "&ldquo;",
 '': "&rdquo;",
 }
+
+def csvStringToList(csvString, separator):
+    if csvString is None or csvString =="" :
+        return []
+
+    csvArray = csvString.split(separator)
+
+    returnList = []
+    for currField in csvArray:
+        returnList.append(currField)
+
+    return returnList
 
 def remove_empty_lines(string_to_fix, end_line):
     return_string = ""
@@ -97,10 +112,10 @@ def convert_html(string_to_convert, end_line):
     
     return return_string.strip()
 
-def print_empty_line():
+def print_empty_line(output_file_handle):
     output_file_handle.write(ENDL)
     
-def flush_print_files():
+def flush_print_files(debug_output_file_handle, output_file_handle):
     debug_output_file_handle.flush()
     output_file_handle.flush()
 
@@ -114,13 +129,13 @@ def prep_for_xml_out(string_to_prep):
 def wrap_xml_field(num_spaces, xml_tag_name, xml_field):
     return (' ' * num_spaces) + "<" + xml_tag_name + ">" + prep_for_xml_out(str(xml_field)) + "</" + xml_tag_name + ">" + ENDL
 
-def check_if_table_exists(table_name):
+def check_if_table_exists(debug_output_file_handle, table_name):
     conn = MySQLdb.connect(host=db_host, user=db_user, passwd=db_password, database=db_database, port=db_port)
     cursor = conn.cursor()
     
     get_sql = "SHOW TABLES LIKE '" + table_name + "'"
     
-    debug_output_file_handle.write("get_content_types sql statement: " + str(get_sql) + ENDL)
+    debug_output_file_handle.write("check_if_table_exists sql statement: " + str(get_sql) + ENDL)
     debug_output_file_handle.flush()
     cursor.execute(get_sql)
     tables = cursor.fetchall()
@@ -132,7 +147,7 @@ def check_if_table_exists(table_name):
 
     return False
 
-def get_content_types():
+def get_content_types(debug_output_file_handle, content_types_to_exclude):
     conn = MySQLdb.connect(host=db_host, user=db_user, passwd=db_password, database=db_database, port=db_port)
     cursor = conn.cursor()
     
@@ -142,13 +157,25 @@ def get_content_types():
     debug_output_file_handle.write("get_content_types sql statement: " + str(get_sql) + ENDL)
     debug_output_file_handle.flush()
     cursor.execute(get_sql)
-    content_types = cursor.fetchall()
+    content_types_data = cursor.fetchall()
     cursor.close()
     conn.close()
     
+    content_types = []
+    for curr_ct_data in content_types_data:
+        content_type = curr_ct_data[0]
+
+        if content_type is None :
+            continue
+
+        if content_types_to_exclude is not None and content_type in content_types_to_exclude:
+            continue
+
+        content_types.append(curr_ct_data)
+
     return content_types
 
-def get_content_type_fields(content_type):
+def get_content_type_fields(debug_output_file_handle, content_type):
     conn = MySQLdb.connect(host=db_host, user=db_user, passwd=db_password, database=db_database, port=db_port)
     cursor = conn.cursor()
 
@@ -174,7 +201,7 @@ def get_content_type_fields(content_type):
     
     return fields
 
-def export_content_type_metadata(output_file_handle, content_type):
+def export_content_type_metadata(debug_output_file_handle, output_file_handle, content_type):
     export_string = ""
     
     export_string += wrap_xml_field(6, "ct_machine_name", content_type[0])
@@ -192,11 +219,11 @@ def export_content_type_metadata(output_file_handle, content_type):
     export_string += wrap_xml_field(6, "ct_locked", content_type[12])
     export_string += wrap_xml_field(6, "ct_orig_type", content_type[13])
     output_file_handle.write(export_string)
-    flush_print_files()
+    flush_print_files(debug_output_file_handle, output_file_handle)
 
-def export_content_type_fields(output_file_handle, content_type):
+def export_content_type_fields(debug_output_file_handle, output_file_handle, content_type):
     content_type_machine_name = content_type[0]
-    fields = get_content_type_fields(content_type_machine_name)
+    fields = get_content_type_fields(debug_output_file_handle, content_type_machine_name)
     for field in fields:
         export_string = ""
         
@@ -221,33 +248,47 @@ def export_content_type_fields(output_file_handle, content_type):
         
         output_file_handle.write(export_string)
         output_file_handle.write("      </content_type_field>" + ENDL)
-        flush_print_files()
+        flush_print_files(debug_output_file_handle, output_file_handle)
 
-if(not os.path.isdir(OUTPUT_DIRECTORY)):
-    os.mkdir(OUTPUT_DIRECTORY)
+def main():
+    parser = argparse.ArgumentParser(description='Export drupal content types from a drupal 9 website.')
+    parser.add_argument('--exclude', type=str, required=False,
+                        help='comma separated list of content types to exclude from export')
 
-export_directory = os.path.join(OUTPUT_DIRECTORY, current_website)
-if(not os.path.isdir(export_directory)):
-    os.mkdir(export_directory)
+    parameters = parser.parse_args()
 
-logs_directory = os.path.join(export_directory, LOGS_DIRECTORY)
-if(not os.path.isdir(logs_directory)):
-    os.mkdir(logs_directory)
-debug_output_file = os.path.join(logs_directory, 'debug.log')
+    content_types_to_exclude = csvStringToList(parameters.exclude, ",")
+    print(content_types_to_exclude)
 
-debug_output_file_handle = open(debug_output_file, mode='w')
+    if(not os.path.isdir(OUTPUT_DIRECTORY)):
+        os.mkdir(OUTPUT_DIRECTORY)
+	
+    export_directory = os.path.join(OUTPUT_DIRECTORY, current_website)
+    if(not os.path.isdir(export_directory)):
+        os.mkdir(export_directory)
+	
+    logs_directory = os.path.join(export_directory, LOGS_DIRECTORY)
+    if(not os.path.isdir(logs_directory)):
+        os.mkdir(logs_directory)
 
-content_types = get_content_types()
-for content_type in content_types:
-    curr_content_type = prep_for_xml_out(str(content_type[0]))
-    output_file_handle = open(os.path.join(export_directory, "content_type_" + curr_content_type + ".xml"), mode='w', encoding='utf-8')
-    output_file_handle.write('<?xml version="1.0" ?>' + ENDL)
-    output_file_handle.write("<content_types>" + ENDL)
-    output_file_handle.write("   <content_type>" + ENDL)
-    export_content_type_metadata(output_file_handle, content_type)
-    export_content_type_fields(output_file_handle, content_type)
-    output_file_handle.write("   </content_type>" + ENDL)
-    output_file_handle.write("</content_types>" + ENDL)
-    output_file_handle.close()
-debug_output_file_handle.close()
+    debug_output_file = os.path.join(logs_directory, 'ct_debug.log')
+	
+    debug_output_file_handle = open(debug_output_file, mode='w')
+	
+    content_types = get_content_types(debug_output_file_handle, content_types_to_exclude)
+    for content_type in content_types:
+        curr_content_type = prep_for_xml_out(str(content_type[0]))
+        output_file_handle = open(os.path.join(export_directory, "content_type_" + curr_content_type + ".xml"), mode='w', encoding='utf-8')
+        output_file_handle.write('<?xml version="1.0" ?>' + ENDL)
+        output_file_handle.write("<content_types>" + ENDL)
+        output_file_handle.write("   <content_type>" + ENDL)
+        export_content_type_metadata(debug_output_file_handle, output_file_handle, content_type)
+        export_content_type_fields(debug_output_file_handle, output_file_handle, content_type)
+        output_file_handle.write("   </content_type>" + ENDL)
+        output_file_handle.write("</content_types>" + ENDL)
+        output_file_handle.close()
+    debug_output_file_handle.close()
+
+if __name__ == "__main__":
+    main()
 
