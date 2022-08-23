@@ -186,14 +186,15 @@ def get_active_users(debug_output_file_handle):
 
 def main():
     # Start exporting the data
-    parser = argparse.ArgumentParser(description='Export drupal content types from a drupal 9 website.')
+    parser = argparse.ArgumentParser(description='Export drupal users from a drupal 9 website.')
     parser.add_argument('--exclude', type=str, required=False,
-                        help='comma separated list of content types to exclude from export')
+                        help='comma separated list of users to exclude from export')
 
     parameters = parser.parse_args()
 
-    content_types_to_exclude = csvStringToList(parameters.exclude, ",")
-    print(content_types_to_exclude)
+    users_to_exclude = csvStringToList(parameters.exclude, ",")
+    if len(users_to_exclude) > 0:
+        print(users_to_exclude)
 
     if(not os.path.isdir(OUTPUT_DIRECTORY)):
         os.mkdir(OUTPUT_DIRECTORY)
@@ -215,6 +216,8 @@ def main():
     active_users = get_active_users(debug_output_file_handle)
     for active_user in active_users:
         curr_user_name = active_user[0]
+        if curr_user_name in users_to_exclude:
+            break
         curr_user_mail = active_user[1]
         curr_user_theme = active_user[2]
         curr_user_signature = active_user[3]
