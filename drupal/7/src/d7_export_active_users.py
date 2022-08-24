@@ -167,7 +167,7 @@ def get_active_users(debug_output_file_handle):
     cursor = conn.cursor()
 
     user_records = []
-    get_sql = "SELECT name, mail, theme, signature, signature_format, created, access, login, status, timezone, language, picture, init, data, changed "
+    get_sql = "SELECT uid, name, mail, theme, signature, signature_format, created, access, login, status, timezone, language, picture, init, data, changed "
     get_sql += "FROM users "
     get_sql += "WHERE status = 1 "
     get_sql += "ORDER BY uid"
@@ -184,16 +184,50 @@ def get_active_users(debug_output_file_handle):
     
     return users
 
+def get_users_roles(debug_output_file_handle, curr_user_id):
+    conn = MySQLdb.connect(host=db_host, user=db_user, passwd=db_password, database=db_database, port=db_port)
+    cursor = conn.cursor()
+
+    user_role_records = []
+    get_sql = "SELECT name "
+    get_sql += "FROM users_roles, role "
+    get_sql += "WHERE users_roles.rid = role.rid "
+    get_sql += "AND users_roles.uid  = " + str(curr_user_id) + " "
+    get_sql += "ORDER BY role.weight, role.`name`, role.rid"
+    debug_output_file_handle.write("get_users_roles sql statement: " + str(get_sql) + ENDL)
+    debug_output_file_handle.flush()
+    cursor.execute(get_sql)
+    user_role_records = cursor.fetchall()
+    cursor.close()
+    conn.close()
+
+    users_roles = []
+    for user_role_record in user_role_records:
+        users_roles.append(user_role_record[0])
+
+    return users_roles
+    
+def get_users_roles_csv(debug_output_file_handle, curr_user_id):
+    str_csv_users_roles = ""
+
+    user_role_records = get_users_roles(debug_output_file_handle, curr_user_id)
+    
+    for user_role_record in user_role_records:
+        str_csv_users_roles += "," + str(user_role_record)
+        
+    return str_csv_users_roles.strip(',')
+
 def main():
     # Start exporting the data
-    parser = argparse.ArgumentParser(description='Export drupal content types from a drupal 9 website.')
+    parser = argparse.ArgumentParser(description='Export drupal users from a drupal 9 website.')
     parser.add_argument('--exclude', type=str, required=False,
-                        help='comma separated list of content types to exclude from export')
+                        help='comma separated list of users to exclude from export')
 
     parameters = parser.parse_args()
 
-    content_types_to_exclude = csvStringToList(parameters.exclude, ",")
-    print(content_types_to_exclude)
+    users_to_exclude = csvStringToList(parameters.exclude, ",")
+    if len(users_to_exclude) > 0:
+        print(users_to_exclude)
 
     if(not os.path.isdir(OUTPUT_DIRECTORY)):
         os.mkdir(OUTPUT_DIRECTORY)
@@ -214,21 +248,27 @@ def main():
     
     active_users = get_active_users(debug_output_file_handle)
     for active_user in active_users:
-        curr_user_name = active_user[0]
-        curr_user_mail = active_user[1]
-        curr_user_theme = active_user[2]
-        curr_user_signature = active_user[3]
-        curr_user_sig_format = active_user[4]
-        curr_user_created = active_user[5]
-        curr_user_access = active_user[6]
-        curr_user_login = active_user[7]
-        curr_user_status = active_user[8]
-        curr_user_timezone = active_user[9]
-        curr_user_language = active_user[10]
-        curr_user_picture = active_user[11]
-        curr_user_init = active_user[12]
-        curr_user_data = active_user[13]
-        curr_user_changed = active_user[14]
+        curr_user_id = active_user[0]
+        curr_user_name = active_user[1]
+        if curr_user_name in users_to_exclude:
+            break
+        curr_user_mail = active_user[2]
+        curr_user_theme = active_user[3]
+        curr_user_signature = active_user[4]
+        curr_user_sig_format = active_user[5]
+        curr_user_created = active_user[6]
+        curr_user_access = active_user[7]
+        curr_user_login = active_user[8]
+        curr_user_status = active_user[9]
+        curr_user_timezone = active_user[10]
+        curr_user_language = active_user[11]
+        curr_user_picture = active_user[12]
+        curr_user_init = active_user[13]
+        curr_user_data = active_user[14]
+        curr_user_changed = active_user[15]
+
+        curr_user_roles = get_users_roles_csv(debug_output_file_handle, curr_user_id)
+        
         #curr_module_project = drupal_7_json_get_key(curr_module_data, "project")
         #curr_module_version = drupal_7_json_get_key(curr_module_data, "version")
 
@@ -248,6 +288,7 @@ def main():
         output_file_handle.write(' ' + "<init>" + str(curr_user_init) + "</init>" + ENDL)
         output_file_handle.write(' ' + "<data>" + str(curr_user_data) + "</data>" + ENDL)
         output_file_handle.write(' ' + "<changed>" + str(curr_user_changed) + "</changed>" + ENDL)
+        output_file_handle.write(' ' + "<roles>" + str(curr_user_roles) + "</roles>" + ENDL)
         output_file_handle.write(' ' + "</user>" + ENDL)
 
     flush_print_files(debug_output_file_handle, output_file_handle)
