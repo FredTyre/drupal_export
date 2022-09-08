@@ -1,6 +1,13 @@
+from operator import truediv
+from xml.sax.saxutils import escape
+
+import string
+import sys
+import argparse
 import os
 import MySQLdb
 import re
+import sshtunnel
 
 OUTPUT_DIRECTORY = 'output'
 LOGS_DIRECTORY = 'logs'
@@ -31,6 +38,18 @@ ignore_case_replace_negative = re.compile("-", re.IGNORECASE)
 ignore_case_replace_forward_slash = re.compile("[/]+", re.IGNORECASE)
 ignore_case_replace_letters = re.compile("[a-z]+", re.IGNORECASE)
 ignore_case_replace_period = re.compile("[\.]+", re.IGNORECASE)
+
+def csvStringToList(csvString, separator):
+    if csvString is None or csvString =="" :
+        return []
+
+    csvArray = csvString.split(separator)
+
+    returnList = []
+    for currField in csvArray:
+        returnList.append(currField)
+
+    return returnList
 
 def remove_empty_lines(string_to_fix, end_line):
     return_string = ""
@@ -161,44 +180,60 @@ def printChildren(debug_output_file_handle, output_file_handle, vocabulary_id, v
 
         printChildren(debug_output_file_handle, output_file_handle, vocabulary_id, curr_vocabulary_name, depth+1, child_tid, child_term_name)
 
-if(not os.path.isdir(OUTPUT_DIRECTORY)):
-    os.mkdir(OUTPUT_DIRECTORY)
+def main():
+    parser = argparse.ArgumentParser(description='Export drupal taxonomies from a drupal 7 website.')
+    parser.add_argument('--exclude', type=str, required=False,
+                        help='comma separated list of taxonomies to exclude from export')
 
-export_directory = os.path.join(OUTPUT_DIRECTORY, current_website)
-if(not os.path.isdir(export_directory)):
-    os.mkdir(export_directory)
+    parameters = parser.parse_args()
 
-logs_directory = os.path.join(export_directory, LOGS_DIRECTORY)
-if(not os.path.isdir(logs_directory)):
-    os.mkdir(logs_directory)
-debug_output_file = os.path.join(logs_directory, 'taxonomy_debug.log')
+    taxonomies_to_exclude = csvStringToList(parameters.exclude, ",")
+    print(taxonomies_to_exclude)
 
-debug_output_file_handle = open(debug_output_file, mode='w')
+    if(not os.path.isdir(OUTPUT_DIRECTORY)):
+        os.mkdir(OUTPUT_DIRECTORY)
 
-vocabularies = get_vocabularies(debug_output_file_handle)
-for vocabulary in vocabularies:
-    curr_vocabulary_id = vocabulary[0]
-    curr_vocabulary_name = vocabulary[1]
-    output_file_handle = open(os.path.join(export_directory, curr_vocabulary_name + "_taxonomy.xml"), mode='w', encoding='utf-8')
-    output_file_handle.write('<?xml version="1.0" ?>' + ENDL)
-    output_file_handle.write("<taxonomy_terms>" + ENDL)
-    taxonomy_top_levels = get_taxonomy_top_level(debug_output_file_handle, curr_vocabulary_id)
-    flush_print_files(debug_output_file_handle, output_file_handle)
-    for taxonomy_top_level in taxonomy_top_levels:
-        curr_term_tid = taxonomy_top_level[0]
-        output_file_handle.write(' ' + "<taxonomy_term>" + ENDL)
-        output_file_handle.write(' ' + "<vocabulary_id>" + str(curr_vocabulary_id) + "</vocabulary_id>" + ENDL)
-        output_file_handle.write(' ' + "<vocabulary_name>" + str(curr_vocabulary_name) + "</vocabulary_name>" + ENDL)
-        output_file_handle.write(' ' + "<term_id>" + str(curr_term_tid) + "</term_id>" + ENDL)
-        curr_term_name = taxonomy_top_level[1]
-        output_file_handle.write(' ' + "<term_name>" + str(curr_term_name) + "</term_name>" + ENDL)
-        output_file_handle.write(' ' + "</taxonomy_term>" + ENDL)
+    export_directory = os.path.join(OUTPUT_DIRECTORY, current_website)
+    if(not os.path.isdir(export_directory)):
+        os.mkdir(export_directory)
 
-        printChildren(debug_output_file_handle, output_file_handle, curr_vocabulary_id, curr_vocabulary_name, 1, curr_term_tid, curr_term_name)
+    logs_directory = os.path.join(export_directory, LOGS_DIRECTORY)
+    if(not os.path.isdir(logs_directory)):
+        os.mkdir(logs_directory)
+    debug_output_file = os.path.join(logs_directory, 'taxonomy_debug.log')
 
+    debug_output_file_handle = open(debug_output_file, mode='w')
+
+    vocabularies = get_vocabularies(debug_output_file_handle)
+    for vocabulary in vocabularies:
+        curr_vocabulary_id = vocabulary[0]
+        curr_vocabulary_name = vocabulary[1]
+        if curr_vocabulary_name in taxonomies_to_exclude:
+            print("Excluding vocabulary: " + curr_vocabulary_name)
+            continue
+        output_file_handle = open(os.path.join(export_directory, curr_vocabulary_name + "_taxonomy.xml"), mode='w', encoding='utf-8')
+        output_file_handle.write('<?xml version="1.0" ?>' + ENDL)
+        output_file_handle.write("<taxonomy_terms>" + ENDL)
+        taxonomy_top_levels = get_taxonomy_top_level(debug_output_file_handle, curr_vocabulary_id)
         flush_print_files(debug_output_file_handle, output_file_handle)
+        for taxonomy_top_level in taxonomy_top_levels:
+            curr_term_tid = taxonomy_top_level[0]
+            output_file_handle.write(' ' + "<taxonomy_term>" + ENDL)
+            output_file_handle.write(' ' + "<vocabulary_id>" + str(curr_vocabulary_id) + "</vocabulary_id>" + ENDL)
+            output_file_handle.write(' ' + "<vocabulary_name>" + str(curr_vocabulary_name) + "</vocabulary_name>" + ENDL)
+            output_file_handle.write(' ' + "<term_id>" + str(curr_term_tid) + "</term_id>" + ENDL)
+            curr_term_name = taxonomy_top_level[1]
+            output_file_handle.write(' ' + "<term_name>" + str(curr_term_name) + "</term_name>" + ENDL)
+            output_file_handle.write(' ' + "</taxonomy_term>" + ENDL)
+
+            printChildren(debug_output_file_handle, output_file_handle, curr_vocabulary_id, curr_vocabulary_name, 1, curr_term_tid, curr_term_name)
     
-    output_file_handle.write("</taxonomy_terms>" + ENDL)
-    output_file_handle.close()
-debug_output_file_handle.close()
+            flush_print_files(debug_output_file_handle, output_file_handle)
+    
+        output_file_handle.write("</taxonomy_terms>" + ENDL)
+        output_file_handle.close()
+    debug_output_file_handle.close()
+
+if __name__ == "__main__":
+    main()
 

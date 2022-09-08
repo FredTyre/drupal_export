@@ -148,7 +148,7 @@ def check_if_table_exists(debug_output_file_handle, table_name):
 
     return False
 
-def get_content_types(debug_output_file_handle, content_type):
+def get_content_types(debug_output_file_handle):
     conn = MySQLdb.connect(host=db_host, user=db_user, passwd=db_password, database=db_database, port=db_port)
     cursor = conn.cursor()
     
@@ -264,9 +264,12 @@ def main():
 
     debug_output_file_handle = open(debug_output_file, mode='w')
 
-    content_types = get_content_types(debug_output_file_handle, content_types_to_exclude)
+    content_types = get_content_types(debug_output_file_handle)
     for content_type in content_types:
-        curr_content_type = prep_for_xml_out(str(content_type[0]))
+        curr_content_type = prep_for_xml_out(str(content_type[0]))        
+        if curr_content_type in content_types_to_exclude:
+            print("Excluding content type: " + curr_content_type)
+            continue
         output_file_handle = open(os.path.join(export_directory, "content_type_" + curr_content_type + ".xml"), mode='w', encoding='utf-8')
         output_file_handle.write('<?xml version="1.0" ?>' + ENDL)
         output_file_handle.write("<content_types>" + ENDL)
