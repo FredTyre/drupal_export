@@ -17,12 +17,12 @@ ENDL = '\n'
 SINGLE_QUOTE = "'"
 DOUBLE_QUOTE = '"'
 
-current_website = os.environ.get("D6ET_CURR_SITE_NAME")
-db_host = os.environ.get("D6ET_CURR_DB_HOST")
-db_port = int(os.environ.get("D6ET_CURR_DB_PORT"))
-db_user = os.environ.get("D6ET_CURR_DB_USER")
-db_password =  os.environ.get("D6ET_CURR_DB_PASS")
-db_database =  os.environ.get("D6ET_CURR_DB_NAME")
+current_website = os.environ.get("D7ET_CURR_SITE_NAME")
+db_host = os.environ.get("D7ET_CURR_DB_HOST")
+db_port = int(os.environ.get("D7ET_CURR_DB_PORT"))
+db_user = os.environ.get("D7ET_CURR_DB_USER")
+db_password =  os.environ.get("D7ET_CURR_DB_PASS")
+db_database =  os.environ.get("D7ET_CURR_DB_NAME")
 
 ignore_case_replace_end_lines_1 = re.compile("<br/>", re.IGNORECASE)
 ignore_case_replace_end_lines_2 = re.compile("<br />", re.IGNORECASE)
@@ -206,13 +206,13 @@ def get_content_type_fields(debug_output_file_handle, content_type):
     cursor = conn.cursor()
 
     fields = []
-    get_sql = "SELECT content_node_field_instance.field_name, type, global_settings, required, "
-    get_sql += "multiple, db_storage, module, db_columns, active, weight, label, widget_type, "
-    get_sql += "widget_settings, display_settings, description, "
-    get_sql += "widget_module, widget_active "
-    get_sql += "FROM content_node_field_instance, content_node_field "
-    get_sql += "WHERE content_node_field_instance.field_name = content_node_field.field_name "
-    get_sql += "AND type_name = '" + content_type + "'"
+    get_sql = "SELECT field_config_instance.field_name, type, field_config_instance.data, NULL required, "
+    get_sql += "cardinality, storage_type, module, NULL db_columns, active, NULL weight, NULL label, NULL widget_type, "
+    get_sql += "NULL widget_settings, NULL display_settings, NULL description, "
+    get_sql += "NULL widget_module, NULL widget_active "
+    get_sql += "FROM field_config_instance, field_config "
+    get_sql += "WHERE field_config_instance.field_id = field_config.id "
+    get_sql += "AND bundle = '" + content_type + "'"
     debug_output_file_handle.write("get_content_type_fields sql statement: " + str(get_sql) + ENDL)
     debug_output_file_handle.flush()
     cursor.execute(get_sql)
@@ -227,54 +227,87 @@ def get_content_type_fields(debug_output_file_handle, content_type):
     
     return fields
 
-def export_content_type_metadata(debug_output_file_handle, output_file_handle, content_type):
-    export_string = ""
+def get_content_type_data(debug_output_file_handle, curr_content_type):
+    conn = MySQLdb.connect(host=db_host, user=db_user, passwd=db_password, database=db_database, port=db_port)
+    cursor = conn.cursor()
+
+    get_select_sql = "SELECT node.nid, node.vid, node.title, node.uid, node.created, node.changed, node.comment, node.promote, node.sticky, node.tnid, node.translate "
+    get_from_sql = " FROM node "
+    get_where_sql = " WHERE node.status = 1 "
+    get_where_sql += " AND node.type = '" + curr_content_type + "' "
+    get_where_sql += " AND node.language = 'und' "
     
-    export_string += wrap_xml_field(6, "ct_machine_name", content_type[0])
-    export_string += wrap_xml_field(6, "ct_human_name", content_type[1])
-    export_string += wrap_xml_field(6, "ct_description", content_type[3])
-    export_string += wrap_xml_field(6, "ct_module", content_type[2])
-    export_string += wrap_xml_field(6, "ct_help", content_type[4])
-    export_string += wrap_xml_field(6, "ct_has_title", content_type[5])
-    export_string += wrap_xml_field(6, "ct_title_label", content_type[6])
-    export_string += wrap_xml_field(6, "ct_has_body", content_type[7])
-    export_string += wrap_xml_field(6, "ct_body_label", content_type[8])
-    export_string += wrap_xml_field(6, "ct_min_word_count", content_type[9])
-    export_string += wrap_xml_field(6, "ct_custom", content_type[10])
-    export_string += wrap_xml_field(6, "ct_modified", content_type[11])
-    export_string += wrap_xml_field(6, "ct_locked", content_type[12])
-    export_string += wrap_xml_field(6, "ct_orig_type", content_type[13])
+    fields = []
+    fields = get_content_type_fields(debug_output_file_handle, curr_content_type)
+    for field in fields:
+        #print(field)
+        curr_field_name = field[0]
+        curr_field_type = field[1]
+        #print(curr_field_name)
+        #print(curr_field_type)
+        if curr_field_name == "body":
+            curr_table_name = "field_data_body"
+            get_select_sql += ", " + curr_table_name + ".body_value "
+        elif curr_field_name == "comment_body":
+            curr_table_name = "field_data_comment_body"
+            get_select_sql += ", " + curr_table_name + ".comment_body_value "
+        else:
+            curr_table_name = "field_data_" + curr_field_name
+            if curr_field_type == "taxonomy_term_reference":
+                get_select_sql += ", " + curr_table_name + "." + curr_field_name + "_tid "
+            elif curr_field_type == "image":
+                get_select_sql += ", " + curr_table_name + "." + curr_field_name + "_fid "
+            elif curr_field_type == "entityreference":
+                get_select_sql += ", " + curr_table_name + "." + curr_field_name + "_target_id "
+            elif curr_field_type == "addressfield":
+                get_select_sql += ", " + curr_table_name + "." + curr_field_name + "_organisation_name "
+                get_select_sql += ", " + curr_table_name + "." + curr_field_name + "_first_name "
+                get_select_sql += ", " + curr_table_name + "." + curr_field_name + "_last_name "
+                get_select_sql += ", " + curr_table_name + "." + curr_field_name + "_thoroughfare " + curr_field_name + "_address_1 "
+                get_select_sql += ", " + curr_table_name + "." + curr_field_name + "_locality " + curr_field_name + "_city "
+                get_select_sql += ", " + curr_table_name + "." + curr_field_name + "_administrative_area " + curr_field_name + "_state "
+                get_select_sql += ", " + curr_table_name + "." + curr_field_name + "_country "
+                get_select_sql += ", " + curr_table_name + "." + curr_field_name + "_postal_code "
+            elif curr_field_type == "link_field":
+                get_select_sql += ", " + curr_table_name + "." + curr_field_name + "_url "
+                get_select_sql += ", " + curr_table_name + "." + curr_field_name + "_title "
+            elif curr_field_type == "email":
+                get_select_sql += ", " + curr_table_name + "." + curr_field_name + "_email "
+            else:
+                get_select_sql += ", " + curr_table_name + "." + curr_field_name + "_value "
+        #print(curr_table_name)
+        get_from_sql += mysql_add_left_join_on(curr_content_type, "node", curr_table_name)
+
+    get_sql = get_select_sql + " " + get_from_sql + " " + get_where_sql
+    #print(get_sql)
+    
+    debug_output_file_handle.write("get_content_type_data sql statement: " + str(get_sql) + ENDL)
+    debug_output_file_handle.flush()
+    cursor.execute(get_sql)
+    content_type_data = cursor.fetchall()
+    cursor.close()
+    conn.close()
+
+    ct_data_records = []
+    for curr_data_record in content_type_data:
+        ct_data_records.append(curr_data_record)
+
+    field_names = [curr_index[0] for curr_index in cursor.description]
+    
+    return (field_names, ct_data_records)
+
+def export_ct_data_record(debug_output_file_handle, output_file_handle, curr_content_type, field_names, ct_data_record):
+    export_string = ""
+
+    curr_index = 0
+    for field_name in field_names:
+        if curr_index > len(ct_data_record) :
+            break
+        export_string += wrap_xml_field(6, field_name, ct_data_record[curr_index])
+        curr_index += 1
+        
     output_file_handle.write(export_string)
     flush_print_files(debug_output_file_handle, output_file_handle)
-
-def export_content_type_fields(debug_output_file_handle, output_file_handle, content_type):
-    content_type_machine_name = content_type[0]
-    fields = get_content_type_fields(debug_output_file_handle, content_type_machine_name)
-    for field in fields:
-        export_string = ""
-        
-        output_file_handle.write("      <content_type_field>" + ENDL)
-        export_string += wrap_xml_field(9, "ct_field_name", field[0])
-        export_string += wrap_xml_field(9, "ct_field_type", field[1])
-        export_string += wrap_xml_field(9, "ct_field_global_settings", field[2])
-        export_string += wrap_xml_field(9, "ct_field_required", field[3])
-        export_string += wrap_xml_field(9, "ct_field_multiple", field[4])
-        export_string += wrap_xml_field(9, "ct_field_db_storage", field[5])
-        export_string += wrap_xml_field(9, "ct_field_module", field[6])
-        export_string += wrap_xml_field(9, "ct_field_db_columns", field[7])
-        export_string += wrap_xml_field(9, "ct_field_active", field[8])
-        export_string += wrap_xml_field(9, "ct_field_weight", field[9])
-        export_string += wrap_xml_field(9, "ct_field_label", field[10])
-        export_string += wrap_xml_field(9, "ct_field_widget_type", field[11])
-        export_string += wrap_xml_field(9, "ct_field_widget_settings", field[12])
-        export_string += wrap_xml_field(9, "ct_field_display_settings", field[13])
-        export_string += wrap_xml_field(9, "ct_field_description", field[14])
-        export_string += wrap_xml_field(9, "ct_field_widget_module", field[15])
-        export_string += wrap_xml_field(9, "ct_field_widget_active", field[16])
-        
-        output_file_handle.write(export_string)
-        output_file_handle.write("      </content_type_field>" + ENDL)
-        flush_print_files(debug_output_file_handle, output_file_handle)
 
 def main():
     parser = argparse.ArgumentParser(description='Export drupal content types from a drupal 9 website.')
@@ -288,33 +321,37 @@ def main():
 
     if(not os.path.isdir(OUTPUT_DIRECTORY)):
         os.mkdir(OUTPUT_DIRECTORY)
-	
+
     export_directory = os.path.join(OUTPUT_DIRECTORY, current_website)
     if(not os.path.isdir(export_directory)):
         os.mkdir(export_directory)
-	
+
     logs_directory = os.path.join(export_directory, LOGS_DIRECTORY)
     if(not os.path.isdir(logs_directory)):
         os.mkdir(logs_directory)
 
-    debug_output_file = os.path.join(logs_directory, 'ct_debug.log')
-	
+    debug_output_file = os.path.join(logs_directory, 'content_debug.log')
+
     debug_output_file_handle = open(debug_output_file, mode='w')
-	
-    content_types = get_content_types(debug_output_file_handle, content_types_to_exclude)
+
+    content_types = get_content_types(debug_output_file_handle)
     for content_type in content_types:
-        curr_content_type = prep_for_xml_out(str(content_type[0]))
-        output_file_handle = open(os.path.join(export_directory, "content_type_" + curr_content_type + ".xml"), mode='w', encoding='utf-8')
+        curr_content_type = prep_for_xml_out(str(content_type[0]))        
+        if curr_content_type in content_types_to_exclude:
+            print("Excluding content type: " + curr_content_type)
+            continue
+        output_file_handle = open(os.path.join(export_directory, "content_type_data_" + curr_content_type + ".xml"), mode='w', encoding='utf-8')
         output_file_handle.write('<?xml version="1.0" ?>' + ENDL)
-        output_file_handle.write("<content_types>" + ENDL)
-        output_file_handle.write("   <content_type>" + ENDL)
-        export_content_type_metadata(debug_output_file_handle, output_file_handle, content_type)
-        export_content_type_fields(debug_output_file_handle, output_file_handle, content_type)
-        output_file_handle.write("   </content_type>" + ENDL)
-        output_file_handle.write("</content_types>" + ENDL)
+        output_file_handle.write("<content_type_data>" + ENDL)
+        (field_names, ct_data_records) = get_content_type_data(debug_output_file_handle, curr_content_type)
+        for ct_data_record in ct_data_records:
+            output_file_handle.write("   <ct_data_record>" + ENDL)
+            export_ct_data_record(debug_output_file_handle, output_file_handle, curr_content_type, field_names, ct_data_record)
+            output_file_handle.write("   </ct_data_record>" + ENDL)
+            
+        output_file_handle.write("</content_type_data>" + ENDL)
         output_file_handle.close()
     debug_output_file_handle.close()
 
 if __name__ == "__main__":
     main()
-
