@@ -17,12 +17,12 @@ ENDL = '\n'
 SINGLE_QUOTE = "'"
 DOUBLE_QUOTE = '"'
 
-current_website = os.environ.get("D7ET_CURR_SITE_NAME")
-db_host = os.environ.get("D7ET_CURR_DB_HOST")
-db_port = int(os.environ.get("D7ET_CURR_DB_PORT"))
-db_user = os.environ.get("D7ET_CURR_DB_USER")
-db_password =  os.environ.get("D7ET_CURR_DB_PASS")
-db_database =  os.environ.get("D7ET_CURR_DB_NAME")
+current_website = os.environ.get("D6ET_CURR_SITE_NAME")
+db_host = os.environ.get("D6ET_CURR_DB_HOST")
+db_port = int(os.environ.get("D6ET_CURR_DB_PORT"))
+db_user = os.environ.get("D6ET_CURR_DB_USER")
+db_password =  os.environ.get("D6ET_CURR_DB_PASS")
+db_database =  os.environ.get("D6ET_CURR_DB_NAME")
 
 ignore_case_replace_end_lines_1 = re.compile("<br/>", re.IGNORECASE)
 ignore_case_replace_end_lines_2 = re.compile("<br />", re.IGNORECASE)
@@ -183,13 +183,13 @@ def get_content_types(debug_output_file_handle, content_types_to_exclude):
     debug_output_file_handle.write("get_content_types sql statement: " + str(get_sql) + ENDL)
     debug_output_file_handle.flush()
     cursor.execute(get_sql)
-    content_types = cursor.fetchall()
+    content_type_records = cursor.fetchall()
     cursor.close()
     conn.close()
     
     content_types = []
-    for curr_ct_data in content_types_data:
-        content_type = curr_ct_data[0]
+    for curr_content_type in content_type_records:
+        content_type = curr_content_type[0]
 
         if content_type is None :
             continue
@@ -197,7 +197,7 @@ def get_content_types(debug_output_file_handle, content_types_to_exclude):
         if content_types_to_exclude is not None and content_type in content_types_to_exclude:
             continue
 
-        content_types.append(curr_ct_data)
+        content_types.append(curr_content_type)
 
     return content_types
 
@@ -206,13 +206,13 @@ def get_content_type_fields(debug_output_file_handle, content_type):
     cursor = conn.cursor()
 
     fields = []
-    get_sql = "SELECT field_config_instance.field_name, type, field_config_instance.data, NULL required, "
-    get_sql += "cardinality, storage_type, module, NULL db_columns, active, NULL weight, NULL label, NULL widget_type, "
-    get_sql += "NULL widget_settings, NULL display_settings, NULL description, "
-    get_sql += "NULL widget_module, NULL widget_active "
-    get_sql += "FROM field_config_instance, field_config "
-    get_sql += "WHERE field_config_instance.field_id = field_config.id "
-    get_sql += "AND bundle = '" + content_type + "'"
+    get_sql = "SELECT content_node_field_instance.field_name, type, global_settings, required, "
+    get_sql += "multiple, db_storage, module, db_columns, active, weight, label, widget_type, "
+    get_sql += "widget_settings, display_settings, description, "
+    get_sql += "widget_module, widget_active "
+    get_sql += "FROM content_node_field_instance, content_node_field "
+    get_sql += "WHERE content_node_field_instance.field_name = content_node_field.field_name "
+    get_sql += "AND type_name = '" + content_type + "'"
     debug_output_file_handle.write("get_content_type_fields sql statement: " + str(get_sql) + ENDL)
     debug_output_file_handle.flush()
     cursor.execute(get_sql)
@@ -231,55 +231,12 @@ def get_content_type_data(debug_output_file_handle, curr_content_type):
     conn = MySQLdb.connect(host=db_host, user=db_user, passwd=db_password, database=db_database, port=db_port)
     cursor = conn.cursor()
 
-    get_select_sql = "SELECT node.nid, node.vid, node.title, node.uid, node.created, node.changed, node.comment, node.promote, node.sticky, node.tnid, node.translate "
-    get_from_sql = " FROM node "
-    get_where_sql = " WHERE node.status = 1 "
-    get_where_sql += " AND node.type = '" + curr_content_type + "' "
-    get_where_sql += " AND node.language = 'und' "
-    
-    fields = []
-    fields = get_content_type_fields(debug_output_file_handle, curr_content_type)
-    for field in fields:
-        #print(field)
-        curr_field_name = field[0]
-        curr_field_type = field[1]
-        #print(curr_field_name)
-        #print(curr_field_type)
-        if curr_field_name == "body":
-            curr_table_name = "field_data_body"
-            get_select_sql += ", " + curr_table_name + ".body_value "
-        elif curr_field_name == "comment_body":
-            curr_table_name = "field_data_comment_body"
-            get_select_sql += ", " + curr_table_name + ".comment_body_value "
-        else:
-            curr_table_name = "field_data_" + curr_field_name
-            if curr_field_type == "taxonomy_term_reference":
-                get_select_sql += ", " + curr_table_name + "." + curr_field_name + "_tid "
-            elif curr_field_type == "image":
-                get_select_sql += ", " + curr_table_name + "." + curr_field_name + "_fid "
-            elif curr_field_type == "entityreference":
-                get_select_sql += ", " + curr_table_name + "." + curr_field_name + "_target_id "
-            elif curr_field_type == "addressfield":
-                get_select_sql += ", " + curr_table_name + "." + curr_field_name + "_organisation_name "
-                get_select_sql += ", " + curr_table_name + "." + curr_field_name + "_first_name "
-                get_select_sql += ", " + curr_table_name + "." + curr_field_name + "_last_name "
-                get_select_sql += ", " + curr_table_name + "." + curr_field_name + "_thoroughfare " + curr_field_name + "_address_1 "
-                get_select_sql += ", " + curr_table_name + "." + curr_field_name + "_locality " + curr_field_name + "_city "
-                get_select_sql += ", " + curr_table_name + "." + curr_field_name + "_administrative_area " + curr_field_name + "_state "
-                get_select_sql += ", " + curr_table_name + "." + curr_field_name + "_country "
-                get_select_sql += ", " + curr_table_name + "." + curr_field_name + "_postal_code "
-            elif curr_field_type == "link_field":
-                get_select_sql += ", " + curr_table_name + "." + curr_field_name + "_url "
-                get_select_sql += ", " + curr_table_name + "." + curr_field_name + "_title "
-            elif curr_field_type == "email":
-                get_select_sql += ", " + curr_table_name + "." + curr_field_name + "_email "
-            else:
-                get_select_sql += ", " + curr_table_name + "." + curr_field_name + "_value "
-        #print(curr_table_name)
-        get_from_sql += mysql_add_left_join_on(curr_content_type, "node", curr_table_name)
-
-    get_sql = get_select_sql + " " + get_from_sql + " " + get_where_sql
-    #print(get_sql)
+    get_sql = "SELECT node.nid, node.vid, node.title, node.uid, node.created, node.changed, node.comment, node.promote, node.sticky, node.tnid, node.translate "
+    get_sql += " , content_type_" + curr_content_type + ".*"
+    get_sql += " FROM node "
+    get_sql += " LEFT JOIN content_type_" + curr_content_type + " ON node.nid = content_type_" + curr_content_type + ".nid"
+    get_sql += " WHERE node.status = 1 "
+    get_sql += " AND node.type = '" + curr_content_type + "' "
     
     debug_output_file_handle.write("get_content_type_data sql statement: " + str(get_sql) + ENDL)
     debug_output_file_handle.flush()
@@ -334,7 +291,7 @@ def main():
 
     debug_output_file_handle = open(debug_output_file, mode='w')
 
-    content_types = get_content_types(debug_output_file_handle)
+    content_types = get_content_types(debug_output_file_handle, content_types_to_exclude)
     for content_type in content_types:
         curr_content_type = prep_for_xml_out(str(content_type[0]))        
         if curr_content_type in content_types_to_exclude:

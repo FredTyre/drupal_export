@@ -173,7 +173,7 @@ def mysql_gen_select_statement(column_names, from_tables, where_clause = None, o
 def mysql_add_left_join_on(content_type, left_table_name, right_table_name):
     return "LEFT JOIN " + right_table_name + " ON " + left_table_name + ".nid = " + right_table_name + ".entity_id AND " + right_table_name + ".entity_type = 'node' AND " + right_table_name + ".bundle = '" + content_type + "' AND " + right_table_name + ".deleted = 0 AND " + right_table_name + ".language = 'und' "
 
-def get_content_types(debug_output_file_handle):
+def get_content_types(debug_output_file_handle, content_types_to_exclude):
     conn = MySQLdb.connect(host=db_host, user=db_user, passwd=db_password, database=db_database, port=db_port)
     cursor = conn.cursor()
     
@@ -187,6 +187,18 @@ def get_content_types(debug_output_file_handle):
     cursor.close()
     conn.close()
     
+    content_types = []
+    for curr_content_type in content_types:
+        content_type = curr_content_type[0]
+
+        if content_type is None :
+            continue
+
+        if content_types_to_exclude is not None and content_type in content_types_to_exclude:
+            continue
+
+        content_types.append(curr_content_type)
+
     return content_types
 
 def get_content_type_fields(debug_output_file_handle, content_type):
@@ -322,7 +334,7 @@ def main():
 
     debug_output_file_handle = open(debug_output_file, mode='w')
 
-    content_types = get_content_types(debug_output_file_handle)
+    content_types = get_content_types(debug_output_file_handle, content_types_to_exclude)
     for content_type in content_types:
         curr_content_type = prep_for_xml_out(str(content_type[0]))        
         if curr_content_type in content_types_to_exclude:
