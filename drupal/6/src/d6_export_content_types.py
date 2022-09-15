@@ -148,31 +148,6 @@ def check_if_table_exists(debug_output_file_handle, table_name):
 
     return False
 
-def mysql_gen_select_statement(column_names, from_tables, where_clause = None, order_by = None, groupby = None):
-    return_sql = "SELECT "
-    for column_name in column_names:
-        return_sql += str(column_name) + ", "
-    return_sql = return_sql.strip(", ")
-    
-    return_sql += " FROM "
-    for table_name in from_tables:
-        return_sql += str(table_name) + ", "
-    return_sql = return_sql.strip(", ")
-    
-    if where_clause is not None:
-        return_sql += " WHERE " + where_clause
-        
-    if order_by is not None:
-        return_sql += " ORDER BY " + order_by
-        
-    if groupby is not None:
-        return_sql += " GROUP BY " + groupby
-
-    return return_sql
-        
-def mysql_add_left_join_on(content_type, left_table_name, right_table_name):
-    return "LEFT JOIN " + right_table_name + " ON " + left_table_name + ".nid = " + right_table_name + ".entity_id AND " + right_table_name + ".entity_type = 'node' AND " + right_table_name + ".bundle = '" + content_type + "' AND " + right_table_name + ".deleted = 0 AND " + right_table_name + ".language = 'und' "
-
 def get_content_types(debug_output_file_handle, content_types_to_exclude):
     conn = MySQLdb.connect(host=db_host, user=db_user, passwd=db_password, database=db_database, port=db_port)
     cursor = conn.cursor()
@@ -183,21 +158,21 @@ def get_content_types(debug_output_file_handle, content_types_to_exclude):
     debug_output_file_handle.write("get_content_types sql statement: " + str(get_sql) + ENDL)
     debug_output_file_handle.flush()
     cursor.execute(get_sql)
-    content_types = cursor.fetchall()
+    ct_records = cursor.fetchall()
     cursor.close()
     conn.close()
     
     content_types = []
-    for curr_ct_data in content_types_data:
-        content_type = curr_ct_data[0]
+    for curr_content_type in ct_records:
+        content_type_name = curr_content_type[0]
 
-        if content_type is None :
+        if content_type_name is None :
             continue
 
-        if content_types_to_exclude is not None and content_type in content_types_to_exclude:
+        if content_types_to_exclude is not None and content_type_name in content_types_to_exclude:
             continue
 
-        content_types.append(curr_ct_data)
+        content_types.append(curr_content_type)
 
     return content_types
 
@@ -288,22 +263,25 @@ def main():
 
     if(not os.path.isdir(OUTPUT_DIRECTORY)):
         os.mkdir(OUTPUT_DIRECTORY)
-	
+
     export_directory = os.path.join(OUTPUT_DIRECTORY, current_website)
     if(not os.path.isdir(export_directory)):
         os.mkdir(export_directory)
-	
+
     logs_directory = os.path.join(export_directory, LOGS_DIRECTORY)
     if(not os.path.isdir(logs_directory)):
         os.mkdir(logs_directory)
 
     debug_output_file = os.path.join(logs_directory, 'ct_debug.log')
-	
+
     debug_output_file_handle = open(debug_output_file, mode='w')
-	
+
     content_types = get_content_types(debug_output_file_handle, content_types_to_exclude)
     for content_type in content_types:
         curr_content_type = prep_for_xml_out(str(content_type[0]))
+        if curr_content_type in content_types_to_exclude:
+            print("Excluding content type: " + curr_content_type)
+            continue
         output_file_handle = open(os.path.join(export_directory, "content_type_" + curr_content_type + ".xml"), mode='w', encoding='utf-8')
         output_file_handle.write('<?xml version="1.0" ?>' + ENDL)
         output_file_handle.write("<content_types>" + ENDL)

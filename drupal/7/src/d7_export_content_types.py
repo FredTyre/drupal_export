@@ -148,7 +148,7 @@ def check_if_table_exists(debug_output_file_handle, table_name):
 
     return False
 
-def get_content_types(debug_output_file_handle):
+def get_content_types(debug_output_file_handle, content_types_to_exclude):
     conn = MySQLdb.connect(host=db_host, user=db_user, passwd=db_password, database=db_database, port=db_port)
     cursor = conn.cursor()
     
@@ -158,10 +158,22 @@ def get_content_types(debug_output_file_handle):
     debug_output_file_handle.write("get_content_types sql statement: " + str(get_sql) + ENDL)
     debug_output_file_handle.flush()
     cursor.execute(get_sql)
-    content_types = cursor.fetchall()
+    ct_records = cursor.fetchall()
     cursor.close()
     conn.close()
     
+    content_types = []
+    for curr_content_type in ct_records:
+        content_type_name = curr_content_type[0]
+
+        if content_type_name is None :
+            continue
+
+        if content_types_to_exclude is not None and content_type_name in content_types_to_exclude:
+            continue
+
+        content_types.append(curr_ct_data)
+
     return content_types
 
 def get_content_type_fields(debug_output_file_handle, content_type):
@@ -264,9 +276,9 @@ def main():
 
     debug_output_file_handle = open(debug_output_file, mode='w')
 
-    content_types = get_content_types(debug_output_file_handle)
+    content_types = get_content_types(debug_output_file_handle, content_types_to_exclude)
     for content_type in content_types:
-        curr_content_type = prep_for_xml_out(str(content_type[0]))        
+        curr_content_type = prep_for_xml_out(str(content_type[0]))
         if curr_content_type in content_types_to_exclude:
             print("Excluding content type: " + curr_content_type)
             continue
