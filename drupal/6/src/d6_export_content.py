@@ -232,9 +232,11 @@ def get_content_type_data(debug_output_file_handle, curr_content_type):
     cursor = conn.cursor()
 
     get_sql = "SELECT node.nid, node.vid, node.title, node.uid, node.created, node.changed, node.comment, node.promote, node.sticky, node.tnid, node.translate "
+    get_sql += " , users.name user_name"
     get_sql += " , content_type_" + curr_content_type + ".*"
     get_sql += " FROM node "
     get_sql += " LEFT JOIN content_type_" + curr_content_type + " ON node.nid = content_type_" + curr_content_type + ".nid"
+    get_sql += " LEFT JOIN users ON node.uid = users.uid "
     get_sql += " WHERE node.status = 1 "
     get_sql += " AND node.type = '" + curr_content_type + "' "
     
@@ -297,7 +299,7 @@ def main():
         if curr_content_type in content_types_to_exclude:
             print("Excluding content type: " + curr_content_type)
             continue
-        output_file_handle = open(os.path.join(export_directory, "content_type_data_" + curr_content_type + ".xml"), mode='w', encoding='utf-8')
+        output_file_handle = open(os.path.join(export_directory, "ct_data_" + curr_content_type + ".xml"), mode='w', encoding='utf-8')
         output_file_handle.write('<?xml version="1.0" ?>' + ENDL)
         output_file_handle.write("<content_type_data>" + ENDL)
         (field_names, ct_data_records) = get_content_type_data(debug_output_file_handle, curr_content_type)
