@@ -17,12 +17,12 @@ ENDL = '\n'
 SINGLE_QUOTE = "'"
 DOUBLE_QUOTE = '"'
 
-current_website = os.environ.get("D7ET_CURR_SITE_NAME")
-db_host = os.environ.get("D7ET_CURR_DB_HOST")
-db_port = int(os.environ.get("D7ET_CURR_DB_PORT"))
-db_user = os.environ.get("D7ET_CURR_DB_USER")
-db_password =  os.environ.get("D7ET_CURR_DB_PASS")
-db_database =  os.environ.get("D7ET_CURR_DB_NAME")
+current_website = os.environ.get("D9ET_CURR_SITE_NAME")
+db_host = os.environ.get("D9ET_CURR_DB_HOST")
+db_port = int(os.environ.get("D9ET_CURR_DB_PORT"))
+db_user = os.environ.get("D9ET_CURR_DB_USER")
+db_password =  os.environ.get("D9ET_CURR_DB_PASS")
+db_database =  os.environ.get("D9ET_CURR_DB_NAME")
 
 ignore_case_replace_end_lines_1 = re.compile("<br/>", re.IGNORECASE)
 ignore_case_replace_end_lines_2 = re.compile("<br />", re.IGNORECASE)

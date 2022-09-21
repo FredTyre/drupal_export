@@ -1,4 +1,6 @@
 from operator import truediv
+from xml.sax.saxutils import escape
+
 import string
 import sys
 import argparse
@@ -6,7 +8,6 @@ import os
 import MySQLdb
 import re
 import sshtunnel
-from xml.sax.saxutils import escape
 
 OUTPUT_DIRECTORY = 'output'
 LOGS_DIRECTORY = 'logs'
