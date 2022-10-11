@@ -8,9 +8,12 @@ import os
 import MySQLdb
 import re
 import sshtunnel
+import html
+import wget
 
 OUTPUT_DIRECTORY = 'output'
 LOGS_DIRECTORY = 'logs'
+FILES_DIRECTORY = 'files'
 
 ENDL = '\n'
 
@@ -18,6 +21,7 @@ SINGLE_QUOTE = "'"
 DOUBLE_QUOTE = '"'
 
 current_website = os.environ.get("D6ET_CURR_SITE_NAME")
+current_website_url = os.environ.get("D6ET_CURR_SITE_URL")
 db_host = os.environ.get("D6ET_CURR_DB_HOST")
 db_port = int(os.environ.get("D6ET_CURR_DB_PORT"))
 db_user = os.environ.get("D6ET_CURR_DB_USER")
@@ -39,6 +43,8 @@ ignore_case_replace_forward_slash = re.compile("[/]+", re.IGNORECASE)
 ignore_case_replace_letters = re.compile("[a-z]+", re.IGNORECASE)
 ignore_case_replace_period = re.compile("[\.]+", re.IGNORECASE)
 ignore_case_replace_amp = re.compile("\&", re.IGNORECASE)
+ignore_case_replace_curr_domain = re.compile(current_website, re.IGNORECASE)
+ignore_case_replace_file_path = re.compile('sites/default/files/', re.IGNORECASE)
 
 html_escape_table = {
 '"': "&quot;",
@@ -49,6 +55,17 @@ html_escape_table = {
 '': "&rdquo;",
 }
 
+def ends_with(haystack, needle):
+    length_of_needle = len(needle)
+
+    if length_of_needle > len(haystack):
+        return False
+    
+    if haystack[-length_of_needle:] == needle :
+        return True
+
+    return False
+        
 def csvStringToList(csvString, separator):
     if csvString is None or csvString =="" :
         return []
@@ -128,8 +145,104 @@ def prep_for_xml_out(string_to_prep):
     return return_string
 
 def wrap_xml_field(num_spaces, xml_tag_name, xml_field):
-    return (' ' * num_spaces) + "<" + xml_tag_name + ">" + prep_for_xml_out(str(xml_field)) + "</" + xml_tag_name + ">" + ENDL
+    return_string = (' ' * num_spaces) + "<" + xml_tag_name + ">"
+    
+    if xml_field is not None:
+        prepped_xml_field = prep_for_xml_out(str(xml_field))        
+        if prepped_xml_field != "None":
+            return_string += prepped_xml_field
+        
+    return_string += "</" + xml_tag_name + ">" + ENDL
+    
+    return return_string
 
+def getLastExtensionOfFile(filename):
+    filePieces = str(filename).split(".")
+    numberOfPieces = len(filePieces)
+    
+    fileExtension = filePieces[numberOfPieces - 1]
+    
+    return "." + fileExtension.strip()
+
+def drupalSimilarFileAfterUploadCheck(file1, file2):
+    file1Extension = ""
+    file2Extension = ""
+    
+    if(len(file1) > 4):
+        file1Extension = getLastExtensionOfFile(file1)
+        #print(file1Extension)
+    if(len(file2) > 4):
+        file2Extension = getLastExtensionOfFile(file2)
+        #print(file2Extension)
+        
+    if(file1Extension != file2Extension):
+        return False
+
+    file1name = str(file1).replace(file1Extension, "")
+    file2name = str(file2).replace(file2Extension, "")
+
+    #print(file1name)
+    #print(file2name)
+    
+    difference = file2name.replace(file1name, "")
+    difference = difference.replace("_", "")
+    difference = difference.replace("-", "")
+    difference.strip()
+
+    #print(difference)
+    
+    if(difference is None or difference == ""):
+        return True
+    
+    if(difference.isnumeric()):
+        return True
+    
+    return False
+
+def drupalSimilarFileListAfterUploadCheck(fileList1, fileList2):
+    if(fileList1 is None or fileList1 == ""):
+        if(fileList2 is None or fileList2 == ""):
+            return True
+        else:
+            return False
+
+    fileArray1 = fileList1.split(", ")
+    fileArray2 = fileList2.split(", ")
+
+    if(len(fileArray1) != len(fileArray2)):
+        return False
+
+    fileArrayIndex = 0
+    for file1name in fileArray1:
+        if(file1name == fileArray2[fileArrayIndex]):
+            fileArrayIndex += 1
+            continue
+        
+        if(not drupalSimilarFileAfterUploadCheck(file1name, fileArray2[fileArrayIndex])):
+            return False
+        
+        fileArrayIndex += 1
+
+    return True
+
+def get_filename(file_url):
+    if(file_url is None or file_url == ""):
+        return ""
+
+    if file_url.find("/") != -1:
+        file_url_pieces = file_url.split("/")
+        return file_url_pieces[-1].strip()
+    
+    return file_url.strip()
+
+def get_file(debug_output_file_handle, file_url, output_directory):
+    if(file_url is None or file_url == ""):
+        return
+
+    debug_output_file_handle.write("Downloading file from url: " + str(file_url) + ENDL)
+    
+    wget.download(file_url, output_directory)
+    
 def check_if_table_exists(debug_output_file_handle, table_name):
     conn = MySQLdb.connect(host=db_host, user=db_user, passwd=db_password, database=db_database, port=db_port)
     cursor = conn.cursor()
@@ -147,6 +260,65 @@ def check_if_table_exists(debug_output_file_handle, table_name):
         return True
 
     return False
+    
+def get_field_tables(debug_output_file_handle, content_type):
+    conn = MySQLdb.connect(host=db_host, user=db_user, passwd=db_password, database=db_database, port=db_port)
+    cursor = conn.cursor()
+    
+    get_sql = "SHOW TABLES LIKE 'content_field_" + content_type + "%'"
+    
+    debug_output_file_handle.write("get_field_tables sql statement: " + str(get_sql) + ENDL)
+    debug_output_file_handle.flush()
+    cursor.execute(get_sql)
+    tables = cursor.fetchall()
+    cursor.close()
+    conn.close()
+
+    field_tables = []
+    for table in tables:
+        field_tables.append(table[0])        
+
+    return field_tables
+
+def get_field_names(debug_output_file_handle, field_table):
+    conn = MySQLdb.connect(host=db_host, user=db_user, passwd=db_password, database=db_database, port=db_port)
+    cursor = conn.cursor()
+    
+    get_sql = "DESCRIBE " + field_table
+    
+    debug_output_file_handle.write("get_field_names sql statement: " + str(get_sql) + ENDL)
+    debug_output_file_handle.flush()
+    cursor.execute(get_sql)
+    fields = cursor.fetchall()
+    cursor.close()
+    conn.close()
+
+    field_names = []
+    for field in fields:
+        field_names.append(field[0])        
+
+    return field_names
+    
+
+def get_filepath(debug_output_file_handle, file_id):
+    conn = MySQLdb.connect(host=db_host, user=db_user, passwd=db_password, database=db_database, port=db_port)
+    cursor = conn.cursor()
+    
+    get_sql = "SELECT filepath "
+    get_sql += "FROM files "
+    get_sql += "WHERE fid = " + str(file_id)
+    
+    debug_output_file_handle.write("get_filepath sql statement: " + str(get_sql) + ENDL)
+    debug_output_file_handle.flush()
+    cursor.execute(get_sql)
+    filepaths = cursor.fetchall()
+    cursor.close()
+    conn.close()
+
+    for filepath in filepaths:        
+        return filepath[0]
+    
+    return None
 
 def mysql_gen_select_statement(column_names, from_tables, where_clause = None, order_by = None, groupby = None):
     return_sql = "SELECT "
@@ -255,16 +427,73 @@ def get_content_type_data(debug_output_file_handle, curr_content_type):
     
     return (field_names, ct_data_records)
 
-def export_ct_data_record(debug_output_file_handle, output_file_handle, curr_content_type, field_names, ct_data_record):
+def get_xml_of_field_table_data(debug_output_file_handle, field_table, curr_nid, curr_vid):
+    conn = MySQLdb.connect(host=db_host, user=db_user, passwd=db_password, database=db_database, port=db_port)
+    cursor = conn.cursor()
+    export_string = ""
+    
+    field_names = get_field_names(debug_output_file_handle, field_table)
+
+    get_sql = "SELECT nid"
+    for field_name in field_names:
+        if field_name != "nid" and field_name != "vid":
+            get_sql += ", " + str(field_name) + " "
+    
+    get_sql += " FROM " + field_table + " "
+    get_sql += " WHERE nid = " + str(curr_nid)
+    get_sql += " AND vid = " + str(curr_vid)
+    
+    debug_output_file_handle.write("get_xml_of_field_table_data sql statement: " + str(get_sql) + ENDL)
+    debug_output_file_handle.flush()
+    cursor.execute(get_sql)
+    field_table_data = cursor.fetchall()
+    cursor.close()
+    conn.close()
+
+    ct_data_records = []
+    for curr_field_table_data in field_table_data:
+        curr_index = 1
+        for field_name in field_names:
+            if field_name != "nid" and field_name != "vid" and curr_index < len(curr_field_table_data):
+                new_field_name = field_name
+                if new_field_name == "delta":
+                    new_field_name = field_table + "_" + field_name
+                export_string += wrap_xml_field(6, new_field_name, curr_field_table_data[curr_index])
+                curr_index += 1
+
+    return export_string
+
+def export_ct_data_record(debug_output_file_handle, output_file_handle, files_directory, curr_content_type, field_names, ct_data_record):
     export_string = ""
 
+    curr_nid = ct_data_record[0]
+    curr_vid = ct_data_record[1]
+
+    print("processing node id: " + str(curr_nid))
+    
     curr_index = 0
     for field_name in field_names:
         if curr_index > len(ct_data_record) :
             break
+            
         export_string += wrap_xml_field(6, field_name, ct_data_record[curr_index])
-        curr_index += 1
         
+        if ct_data_record[curr_index] is not None and ends_with(field_name, "_fid"):
+            new_field_name = field_name.replace("_fid", "_filename")
+            new_field_name_data = get_filepath(debug_output_file_handle, ct_data_record[curr_index])
+            file_url = current_website_url + "/" + new_field_name_data
+            get_file(debug_output_file_handle, file_url, files_directory)
+            curr_filename = get_filename(file_url)
+            export_string += wrap_xml_field(6, new_field_name, curr_filename)
+            
+        curr_index += 1
+
+    # Find any fields we missed.    
+    field_tables = get_field_tables(debug_output_file_handle, curr_content_type)
+
+    for field_table in field_tables:
+        export_string += get_xml_of_field_table_data(debug_output_file_handle, field_table, curr_nid, curr_vid)
+    
     output_file_handle.write(export_string)
     flush_print_files(debug_output_file_handle, output_file_handle)
 
@@ -289,6 +518,10 @@ def main():
     if(not os.path.isdir(logs_directory)):
         os.mkdir(logs_directory)
 
+    files_directory = os.path.join(export_directory, FILES_DIRECTORY)
+    if(not os.path.isdir(files_directory)):
+        os.mkdir(files_directory)
+    
     debug_output_file = os.path.join(logs_directory, 'content_debug.log')
 
     debug_output_file_handle = open(debug_output_file, mode='w')
@@ -305,7 +538,7 @@ def main():
         (field_names, ct_data_records) = get_content_type_data(debug_output_file_handle, curr_content_type)
         for ct_data_record in ct_data_records:
             output_file_handle.write("   <ct_data_record>" + ENDL)
-            export_ct_data_record(debug_output_file_handle, output_file_handle, curr_content_type, field_names, ct_data_record)
+            export_ct_data_record(debug_output_file_handle, output_file_handle, files_directory, curr_content_type, field_names, ct_data_record)
             output_file_handle.write("   </ct_data_record>" + ENDL)
             
         output_file_handle.write("</content_type_data>" + ENDL)
