@@ -341,6 +341,34 @@ def mysql_gen_select_statement(column_names, from_tables, where_clause = None, o
         return_sql += " GROUP BY " + groupby
 
     return return_sql
+
+def run_sql_fetch_all(sql_to_fetch): 
+    conn = MySQLdb.connect(host=db_host, user=db_user, passwd=db_password, database=db_database, port=db_port)
+    cursor = conn.cursor()
+    
+    cursor.execute(sql_to_fetch)
+    records = cursor.fetchall()
+    cursor.close()
+    conn.commit()
+    conn.close()
+
+    return records
+
+def get_node_type_count(content_type):
+    conn = MySQLdb.connect(host=db_host, user=db_user, passwd=db_password, database=db_database, port=db_port)
+    cursor = conn.cursor()
+
+    get_sql = "SELECT COUNT(*) "
+    get_sql += "FROM node "
+    get_sql += "WHERE type = '" + content_type + "' "
+    get_sql += "AND status = 1"
+
+    node_type_count = run_sql_fetch_all(get_sql)
+
+    if(len(node_type_count) > 0):
+        return node_type_count[0][0]
+
+    return None
         
 def mysql_add_left_join_on(content_type, left_table_name, right_table_name):
     return "LEFT JOIN " + right_table_name + " ON " + left_table_name + ".nid = " + right_table_name + ".entity_id AND " + right_table_name + ".entity_type = 'node' AND " + right_table_name + ".bundle = '" + content_type + "' AND " + right_table_name + ".deleted = 0 AND " + right_table_name + ".language = 'und' "
@@ -404,9 +432,11 @@ def get_content_type_data(debug_output_file_handle, curr_content_type):
     cursor = conn.cursor()
 
     get_sql = "SELECT node.nid, node.vid, node.title, node.uid, node.created, node.changed, node.comment, node.promote, node.sticky, node.tnid, node.translate "
+    get_sql += " , node_revisions.body " + curr_content_type + "_body "
     get_sql += " , users.name user_name"
     get_sql += " , content_type_" + curr_content_type + ".*"
     get_sql += " FROM node "
+    get_sql += " LEFT JOIN node_revisions ON node.nid = node_revisions.nid AND node.vid = node_revisions.vid "
     get_sql += " LEFT JOIN content_type_" + curr_content_type + " ON node.nid = content_type_" + curr_content_type + ".nid"
     get_sql += " LEFT JOIN users ON node.uid = users.uid "
     get_sql += " WHERE node.status = 1 "
@@ -469,7 +499,7 @@ def export_ct_data_record(debug_output_file_handle, output_file_handle, files_di
     curr_nid = ct_data_record[0]
     curr_vid = ct_data_record[1]
 
-    print("processing node id: " + str(curr_nid))
+    #print("processing node id: " + str(curr_nid))
     
     curr_index = 0
     for field_name in field_names:
@@ -496,7 +526,37 @@ def export_ct_data_record(debug_output_file_handle, output_file_handle, files_di
     
     output_file_handle.write(export_string)
     flush_print_files(debug_output_file_handle, output_file_handle)
+    
+def print_new_stats(debug_output_file_handle, content_types_to_exclude):
+    output_string = "><><><><><><><><><><><><><><><><><><><><><><" + ENDL
+    output_string += "Counts of content in the current website..." + ENDL
 
+    output_string += get_all_site_stats(debug_output_file_handle, content_types_to_exclude) + ENDL
+    output_string += "><><><><><><><><><><><><><><><><><><><><><><" + ENDL
+
+    print(output_string)
+    debug_output_file_handle.write(output_string)
+    
+def get_site_stats_of_content_type(content_type):
+    output_string = ""
+    
+    content_type_count = get_node_type_count(content_type)
+    output_string += "Number of " + str(content_type) + ": " + str(content_type_count) + ENDL
+
+    return output_string
+
+def get_all_site_stats(debug_output_file_handle, content_types_to_exclude):
+    output_string = ""
+
+    content_types = get_content_types(debug_output_file_handle, content_types_to_exclude)
+    for content_type in content_types:
+        curr_content_type = str(content_type[0])
+
+        if curr_content_type not in content_types_to_exclude:
+            output_string += get_site_stats_of_content_type(curr_content_type)  
+
+    return output_string
+    
 def main():
     parser = argparse.ArgumentParser(description='Export drupal content types from a drupal 9 website.')
     parser.add_argument('--exclude', type=str, required=False,
@@ -526,6 +586,8 @@ def main():
 
     debug_output_file_handle = open(debug_output_file, mode='w')
 
+    print_new_stats(debug_output_file_handle, content_types_to_exclude)
+    
     content_types = get_content_types(debug_output_file_handle, content_types_to_exclude)
     for content_type in content_types:
         curr_content_type = prep_for_xml_out(str(content_type[0]))        
@@ -543,6 +605,9 @@ def main():
             
         output_file_handle.write("</content_type_data>" + ENDL)
         output_file_handle.close()
+
+    print_new_stats(debug_output_file_handle, content_types_to_exclude)
+    
     debug_output_file_handle.close()
 
 if __name__ == "__main__":
