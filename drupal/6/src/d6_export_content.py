@@ -20,6 +20,10 @@ ENDL = '\n'
 SINGLE_QUOTE = "'"
 DOUBLE_QUOTE = '"'
 
+DOWNLOAD_NONE = 0
+DOWNLOAD_UNCACHED = 1
+DOWNLOAD_ALL = 2
+    
 current_website = os.environ.get("D6ET_CURR_SITE_NAME")
 current_website_url = os.environ.get("D6ET_CURR_SITE_URL")
 db_host = os.environ.get("D6ET_CURR_DB_HOST")
@@ -235,8 +239,12 @@ def get_filename(file_url):
     
     return file_url.strip()
 
-def get_file(debug_output_file_handle, file_url, output_directory):
+def get_file(debug_output_file_handle, download_method, file_url, output_directory):
     if(file_url is None or file_url == ""):
+        return
+
+    if(download_method == DOWNLOAD_UNCACHED and os.path.isdir(output_directory + get_filename(file_url))):
+        debug_output_file_handle.write("File already downloaed from this url (not redownloading): " + str(file_url) + ENDL)
         return
 
     debug_output_file_handle.write("Downloading file from url: " + str(file_url) + ENDL)
@@ -427,18 +435,50 @@ def get_content_type_fields(debug_output_file_handle, content_type):
     
     return fields
 
+def get_content_type_taxonomy_fields(debug_output_file_handle, content_type):
+    conn = MySQLdb.connect(host=db_host, user=db_user, passwd=db_password, database=db_database, port=db_port)
+    cursor = conn.cursor()
+
+    get_sql = "SELECT content_node_field.field_name "
+    get_sql += "FROM content_node_field_instance, content_node_field "
+    get_sql += "WHERE content_node_field_instance.field_name = content_node_field.field_name "
+    get_sql += "AND content_node_field.type = 'content_taxonomy' "
+    get_sql += "AND content_node_field_instance.type_name = '" + content_type + "'"
+    debug_output_file_handle.write("get_content_type_fields sql statement: " + str(get_sql) + ENDL)
+    debug_output_file_handle.flush()
+    cursor.execute(get_sql)
+    fieldrecords = cursor.fetchall()
+    cursor.close()
+    conn.close()
+
+    fields = []
+    for fieldrecord in fieldrecords:
+        fields.append(fieldrecord[0])
+    
+    return fields
+
 def get_content_type_data(debug_output_file_handle, curr_content_type):
     conn = MySQLdb.connect(host=db_host, user=db_user, passwd=db_password, database=db_database, port=db_port)
     cursor = conn.cursor()
+
+    taxonomy_fields = get_content_type_taxonomy_fields(debug_output_file_handle, curr_content_type)
 
     get_sql = "SELECT node.nid, node.vid, node.title, node.uid, node.created, node.changed, node.comment, node.promote, node.sticky, node.tnid, node.translate "
     get_sql += " , node_revisions.body " + curr_content_type + "_body "
     get_sql += " , users.name user_name"
     get_sql += " , content_type_" + curr_content_type + ".*"
+    
+    for taxonomy_field in taxonomy_fields:
+        get_sql += " , term_data.name " + taxonomy_field + "_name "
+
     get_sql += " FROM node "
     get_sql += " LEFT JOIN node_revisions ON node.nid = node_revisions.nid AND node.vid = node_revisions.vid "
     get_sql += " LEFT JOIN content_type_" + curr_content_type + " ON node.nid = content_type_" + curr_content_type + ".nid"
     get_sql += " LEFT JOIN users ON node.uid = users.uid "
+
+    for taxonomy_field in taxonomy_fields:
+        get_sql += " LEFT JOIN term_data ON content_type_digital_publication." + taxonomy_field + "_value = term_data.tid "
+
     get_sql += " WHERE node.status = 1 "
     get_sql += " AND node.type = '" + curr_content_type + "' "
     
@@ -493,7 +533,7 @@ def get_xml_of_field_table_data(debug_output_file_handle, field_table, curr_nid,
 
     return export_string
 
-def export_ct_data_record(debug_output_file_handle, output_file_handle, files_directory, curr_content_type, field_names, ct_data_record):
+def export_ct_data_record(debug_output_file_handle, output_file_handle, files_directory, download_method, curr_content_type, field_names, ct_data_record):
     export_string = ""
 
     curr_nid = ct_data_record[0]
@@ -512,7 +552,8 @@ def export_ct_data_record(debug_output_file_handle, output_file_handle, files_di
             new_field_name = field_name.replace("_fid", "_filename")
             new_field_name_data = get_filepath(debug_output_file_handle, ct_data_record[curr_index])
             file_url = current_website_url + "/" + new_field_name_data
-            get_file(debug_output_file_handle, file_url, files_directory)
+            if download_method != DOWNLOAD_NONE:
+                get_file(debug_output_file_handle, download_method, file_url, files_directory)
             curr_filename = get_filename(file_url)
             export_string += wrap_xml_field(6, new_field_name, curr_filename)
             
@@ -559,13 +600,26 @@ def get_all_site_stats(debug_output_file_handle, content_types_to_exclude):
     
 def main():
     parser = argparse.ArgumentParser(description='Export drupal content types from a drupal 9 website.')
-    parser.add_argument('--exclude', type=str, required=False,
-                        help='comma separated list of content types to exclude from export')
+    parser.add_argument('--exclude', type=str, required=False, help='comma separated list of content types to exclude from export')
+    parser.add_argument('--ignore-file-download', type=str, required=False, help='do not download the files listed in the XML export')
+    parser.add_argument('--file-download-cache', type=str, required=False, help='only download the files listed in the XML export if they have not already been downloaded')
+    parser.add_argument('--file-download-all', type=str, required=False, help='download all the files listed in the XML export')
 
     parameters = parser.parse_args()
-
+    
     content_types_to_exclude = csvStringToList(parameters.exclude, ",")
     print(content_types_to_exclude)
+    
+    download_method = DOWNLOAD_UNCACHED
+        
+    if parameters.file_download_all != "":
+        download_method = DOWNLOAD_ALL
+          
+    if parameters.file_download_cache != "":
+        download_method = DOWNLOAD_UNCACHED
+        
+    if parameters.ignore_file_download != "":
+        download_method = DOWNLOAD_NONE
 
     if(not os.path.isdir(OUTPUT_DIRECTORY)):
         os.mkdir(OUTPUT_DIRECTORY)
@@ -600,7 +654,7 @@ def main():
         (field_names, ct_data_records) = get_content_type_data(debug_output_file_handle, curr_content_type)
         for ct_data_record in ct_data_records:
             output_file_handle.write("   <ct_data_record>" + ENDL)
-            export_ct_data_record(debug_output_file_handle, output_file_handle, files_directory, curr_content_type, field_names, ct_data_record)
+            export_ct_data_record(debug_output_file_handle, output_file_handle, files_directory, download_method, curr_content_type, field_names, ct_data_record)
             output_file_handle.write("   </ct_data_record>" + ENDL)
             
         output_file_handle.write("</content_type_data>" + ENDL)
