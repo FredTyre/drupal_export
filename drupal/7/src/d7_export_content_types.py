@@ -172,7 +172,7 @@ def get_content_types(debug_output_file_handle, content_types_to_exclude):
         if content_types_to_exclude is not None and content_type_name in content_types_to_exclude:
             continue
 
-        content_types.append(curr_ct_data)
+        content_types.append(curr_content_type)
 
     return content_types
 

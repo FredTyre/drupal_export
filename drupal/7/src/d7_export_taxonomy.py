@@ -178,7 +178,7 @@ def printChildren(debug_output_file_handle, output_file_handle, vocabulary_id, v
         output_file_handle.write(depth_spacing + "</taxonomy_term>" + ENDL)
         output_file_handle.flush()
 
-        printChildren(debug_output_file_handle, output_file_handle, vocabulary_id, curr_vocabulary_name, depth+1, child_tid, child_term_name)
+        printChildren(debug_output_file_handle, output_file_handle, vocabulary_id, vocabulary_name, depth+1, child_tid, child_term_name)
 
 def main():
     parser = argparse.ArgumentParser(description='Export drupal taxonomies from a drupal 7 website.')

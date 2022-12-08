@@ -268,7 +268,18 @@ def check_if_table_exists(debug_output_file_handle, table_name):
         return True
 
     return False
+   
+def check_if_field_exists(debug_output_file_handle, table_name, field_name):
+    if not check_if_table_exists(debug_output_file_handle, table_name):
+        return False
+
+    tables_field_names = get_field_names(debug_output_file_handle, table_name)
+    for curr_field_name in tables_field_names:
+        if field_name == curr_field_name:
+            return True
     
+    return False
+
 def get_field_tables(debug_output_file_handle, content_type):
     conn = MySQLdb.connect(host=db_host, user=db_user, passwd=db_password, database=db_database, port=db_port)
     cursor = conn.cursor()
@@ -469,7 +480,8 @@ def get_content_type_data(debug_output_file_handle, curr_content_type):
     get_sql += " , content_type_" + curr_content_type + ".*"
     
     for taxonomy_field in taxonomy_fields:
-        get_sql += " , term_data.name " + taxonomy_field + "_name "
+        if check_if_field_exists(debug_output_file_handle, "term_data", taxonomy_field + "_name") and check_if_field_exists(debug_output_file_handle, "content_type_" + curr_content_type, taxonomy_field + "_value"):
+            get_sql += " , term_data.name " + taxonomy_field + "_name "
 
     get_sql += " FROM node "
     get_sql += " LEFT JOIN node_revisions ON node.nid = node_revisions.nid AND node.vid = node_revisions.vid "
@@ -477,7 +489,8 @@ def get_content_type_data(debug_output_file_handle, curr_content_type):
     get_sql += " LEFT JOIN users ON node.uid = users.uid "
 
     for taxonomy_field in taxonomy_fields:
-        get_sql += " LEFT JOIN term_data ON content_type_digital_publication." + taxonomy_field + "_value = term_data.tid "
+        if check_if_field_exists(debug_output_file_handle, "term_data", taxonomy_field + "_name") and check_if_field_exists(debug_output_file_handle, "content_type_" + curr_content_type, taxonomy_field + "_value"):
+            get_sql += " LEFT JOIN term_data ON content_type_" + curr_content_type + "." + taxonomy_field + "_value = term_data.tid "
 
     get_sql += " WHERE node.status = 1 "
     get_sql += " AND node.type = '" + curr_content_type + "' "
@@ -567,7 +580,7 @@ def export_ct_data_record(debug_output_file_handle, output_file_handle, files_di
     
     output_file_handle.write(export_string)
     flush_print_files(debug_output_file_handle, output_file_handle)
-    
+
 def print_new_stats(debug_output_file_handle, content_types_to_exclude):
     output_string = "><><><><><><><><><><><><><><><><><><><><><><" + ENDL
     output_string += "Counts of content in the current website..." + ENDL
@@ -606,7 +619,7 @@ def main():
     parser.add_argument('--file-download-all', type=str, required=False, help='download all the files listed in the XML export')
 
     parameters = parser.parse_args()
-    
+
     content_types_to_exclude = csvStringToList(parameters.exclude, ",")
     print(content_types_to_exclude)
     
